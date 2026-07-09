@@ -89,16 +89,20 @@ before printing, so the QR codes point somewhere phones can actually reach.
   reserving, materials. Written for crews, not developers.
 - **[docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md)** — how it works under
   the hood: data model, the ledger invariants, migrations, frontend patterns.
+- **[docs/DEPLOY.md](docs/DEPLOY.md)** — running it for real: trailer
+  Pi or VPS, systemd, HTTPS with Caddy, and backups you've actually tested.
 - **[docs/adr/](docs/adr)** — architecture decision records: why a single
   binary + static pages, and why an append-only ledger.
 
 ## Security note
 
 Out of the box the API rules are **open for local testing** (anyone on the
-network can read and write). Before exposing TrenchNote to the internet, lock
-the rules down to authenticated users — every open rule in `pb_migrations/` is
-marked with a `TODO(auth)` comment. PocketBase's auth is built in; this is a
-deliberate later step, not an oversight.
+network can read and write). Running on a LAN you control is fine; **do not
+expose TrenchNote to the internet** until the rules are locked down to
+authenticated users — every open rule in `pb_migrations/` is marked with a
+`TODO(auth)` comment. PocketBase's auth is built in; this is a deliberate
+later step, not an oversight. [docs/DEPLOY.md](docs/DEPLOY.md) spells out
+which deployment options are safe today.
 
 ## License
 

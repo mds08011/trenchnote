@@ -166,6 +166,9 @@ stop the server and delete `pb_data/` — the migrations rebuild the schema on
 next start. To test from a phone, serve on `--http=0.0.0.0:8090` and use the
 laptop's LAN IP.
 
+Running it on a real box (trailer Pi, VPS), plus backups and restore, is
+covered in [DEPLOY.md](DEPLOY.md).
+
 The pages have no test suite; the verification workflow is exercising the
 API with `curl` (create → move → check the ledger) and the pages in a
 browser. Keep it that way until there's a reason not to — the whole frontend
