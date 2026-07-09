@@ -107,7 +107,11 @@ reproduce the entire database from the repo.
 trenchnote/
 ├── CLAUDE.md              # this file — project context
 ├── README.md              # what it is + quickstart for self-hosters
+├── USER_GUIDE.md          # field guide for crews — plain language, no jargon
 ├── LICENSE                # AGPLv3
+├── docs/
+│   ├── DEVELOPER_GUIDE.md # how it works: data model, invariants, patterns
+│   └── adr/               # architecture decision records (the WHY)
 ├── .gitignore             # ignore the pocketbase binary and pb_data/
 ├── pb_migrations/         # versioned schema (COMMITTED)
 ├── pb_public/             # the static frontend

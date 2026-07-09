@@ -65,6 +65,10 @@ derived from the movement ledger, never stored. Material that gets installed
 doesn't vanish — make a location like "Installed — Northside" and move it
 there, so the ledger stays complete for vendor disputes.
 
+Need a machine for an upcoming pour? Any asset page has a **Reserve** option;
+the claim shows up as a "spoken for" warning to anyone who scans that asset,
+and on the dashboard.
+
 ### Testing from a phone
 
 Your phone can't reach `127.0.0.1` — that's your computer's loopback. Serve on
@@ -76,6 +80,15 @@ your LAN IP instead:
 
 Then set the **Base URL** on the labels page to `http://<your-lan-ip>:8090`
 before printing, so the QR codes point somewhere phones can actually reach.
+
+## Documentation
+
+- **[USER_GUIDE.md](USER_GUIDE.md)** — the field guide: scanning, moving,
+  reserving, materials. Written for crews, not developers.
+- **[docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md)** — how it works under
+  the hood: data model, the ledger invariants, migrations, frontend patterns.
+- **[docs/adr/](docs/adr)** — architecture decision records: why a single
+  binary + static pages, and why an append-only ledger.
 
 ## Security note
 
