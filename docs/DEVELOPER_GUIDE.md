@@ -98,10 +98,20 @@ are new movement records.
 
 ### reservations
 
-`asset`, `requested_by`, `needed_by`, `expected_release`. Soft claims — they
-don't block moves; they surface as "spoken for" warnings on asset.html and
-the dashboard so the person grabbing the thing knows someone is counting on
-it.
+`asset`, `requested_by`, `needed_by`, `expected_release`, `note`, `status`
+(`open` | `fulfilled` | `cancelled` — **empty means open**, because rows
+predating the status field have no value; read status with "not
+fulfilled/cancelled", never "=== open"). Soft claims — they don't block
+moves; they surface as "spoken for" warnings on asset.html and the
+dashboard so the person grabbing the thing knows someone is counting on it.
+
+Lifecycle (ADR 0007): humans close claims, the app never guesses. After a
+move, asset.html offers one-tap "mark fulfilled" per open claim; each
+banner has a confirm-guarded cancel. The `createRule` forbids creating a
+claim pre-closed; the `updateRule` lets any signed-in user close any claim.
+An open claim past its `expected_release` is flagged red on both pages —
+stale claims are unresolved questions and are never hidden. Closed claims
+drop out of the UI but stay in the database.
 
 ## The two invariants
 

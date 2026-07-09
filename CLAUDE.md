@@ -91,10 +91,15 @@ reproduce the entire database from the repo.
   enforced server-side by the collection's `createRule` (migrations
   1783468805–1783468807). Timestamp is the `created` autodate field.
 - **`reservations`** — `asset` (relation), `requested_by`, `needed_by` (date),
-  `expected_release` (date). UI: reserve + "spoken for" banner on asset.html,
-  upcoming list on the dashboard. Dates are stored date-only at UTC midnight —
-  always format with `timeZone: 'UTC'` or western timezones show the previous
-  day.
+  `expected_release` (date), `note`, `status` (select: `open` | `fulfilled` |
+  `cancelled`; **empty = open** for pre-status rows — filter with "not
+  closed", never "= open"). Humans close claims (ADR 0007): post-move
+  fulfill offer + confirm-guarded cancel on asset.html; open claims past
+  their release date are flagged red, never hidden; closed claims leave the
+  UI but stay in the DB. UI: reserve + "spoken for" queue on asset.html,
+  upcoming list on the dashboard. Dates are stored date-only at UTC
+  midnight — always format with `timeZone: 'UTC'` or western timezones show
+  the previous day.
 
 ### Model principles
 

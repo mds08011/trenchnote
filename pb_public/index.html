@@ -108,6 +108,11 @@
   }
   .mv .route { color: var(--ink); }
   .mv .who { color: var(--steel); font-size: 13px; margin-top: 1px; }
+  .late {
+    color: #a1160a; font-weight: 700; font-size: 10px;
+    letter-spacing: .08em; border: 1.5px solid currentColor;
+    padding: 0 4px; margin-left: 4px;
+  }
 
   .empty { color: var(--steel); padding: 14px 12px; font-size: 14px; }
   .error { margin-top: 14px; padding: 14px; background: #fdecea; color: #a1160a; font-weight: 600; }
@@ -189,6 +194,7 @@
                 <span x-text="r.requested_by || 'unspecified'"></span><span
                   x-show="r.expected_release"
                   x-text="' · through ' + fmtDate(r.expected_release)"></span>
+                <span class="late" x-show="isExpired(r)">RELEASE PASSED</span>
               </div>
             </div>
           </template>
@@ -270,15 +276,19 @@ function dashboard() {
         .sort((a, b) => b.total - a.total);
     },
 
-    // Reservations whose window hasn't fully passed, soonest first.
-    // ISO-ish date strings compare correctly as plain strings, so no
-    // Date parsing is needed for the cutoff.
+    // Open claims, soonest first (the fetch is already sorted by
+    // needed_by). Empty status = pre-status rows = open. Stale open
+    // claims are shown flagged, not hidden (ADR 0007) — an unresolved
+    // claim is exactly what a PM scanning for conflicts needs to see.
     get upcomingReservations() {
-      const today = new Date().toISOString().slice(0, 10); // "2026-07-08"
       return this.reservations.filter(r =>
-        (r.needed_by && r.needed_by >= today) ||
-        (r.expected_release && r.expected_release >= today)
+        r.status !== 'fulfilled' && r.status !== 'cancelled'
       ).slice(0, 10);
+    },
+
+    isExpired(r) {
+      const today = new Date().toISOString().slice(0, 10);
+      return !!r.expected_release && r.expected_release < today;
     },
 
     fmtDate(pbDate) {

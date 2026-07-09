@@ -128,6 +128,28 @@
     font-size: 14px; font-weight: 600;
   }
   .resv-note strong { text-transform: uppercase; letter-spacing: .06em; font-size: 12px; }
+  /* An open claim whose release date has passed is an unresolved
+     question — flag it, never hide it. */
+  .resv-note.expired { border-color: #a1160a; color: #a1160a; }
+  .resv-cancel {
+    display: block; margin-top: 6px;
+    background: none; border: none; padding: 0; cursor: pointer;
+    font: inherit; font-size: 12px; font-weight: 700;
+    color: inherit; text-decoration: underline;
+  }
+  /* Post-move fulfill offer */
+  .fulfill {
+    margin-top: 14px; padding: 12px;
+    border: 2px solid var(--go); font-size: 14px;
+  }
+  .fulfill p { font-weight: 700; margin-bottom: 8px; }
+  .fulfill button {
+    display: block; width: 100%; min-height: 48px;
+    margin-top: 6px; padding: 8px 12px;
+    font: inherit; font-size: 14px; font-weight: 700;
+    background: var(--paper); color: var(--go);
+    border: 2px solid var(--go); cursor: pointer; text-align: left;
+  }
   .resv { margin-top: 26px; }
   .resv h2 {
     font-size: 12px; font-weight: 700; letter-spacing: .14em;
@@ -201,16 +223,21 @@
         </div>
       </div>
 
-      <!-- Upcoming reservations: the "who has it next" answer. Shown
-           before the move button so a crew grabbing this thing sees the
-           claim before they haul it off. -->
-      <template x-for="r in upcomingReservations" :key="r.id">
-        <div class="resv-note">
-          <strong>Spoken for</strong> —
+      <!-- Open reservations: the "who has it next" answer. Shown before
+           the move button so a crew grabbing this thing sees the claim
+           before they haul it off. Multiple claims = the queue, soonest
+           first — people negotiate, TrenchNote just shows them who to
+           call. Claims stay visible until fulfilled or cancelled; an open
+           claim past its release date turns red instead of vanishing. -->
+      <template x-for="r in activeReservations" :key="r.id">
+        <div class="resv-note" :class="{ expired: isExpired(r) }">
+          <strong x-text="isExpired(r) ? 'Spoken for — release date passed' : 'Spoken for'"></strong> —
           needed by <span x-text="fmtDate(r.needed_by)"></span>
           · <span x-text="r.requested_by || 'unspecified'"></span>
           <span x-show="r.expected_release"
                 x-text="' (through ' + fmtDate(r.expected_release) + ')'"></span>
+          <span x-show="r.note" x-text="' — ' + r.note"></span>
+          <button class="resv-cancel" @click="cancelClaim(r)">Cancel this claim</button>
         </div>
       </template>
 
@@ -229,6 +256,20 @@
 
         <div class="flash" x-show="flash" x-text="flash"></div>
         <div class="error" x-show="moveError" x-text="moveError"></div>
+
+        <!-- After a move, offer to close out open claims. No guesswork:
+             the person who just handed it over says which claim this
+             satisfied. -->
+        <template x-if="showFulfill && activeReservations.length">
+          <div class="fulfill">
+            <p>Did this move hand it over?</p>
+            <template x-for="r in activeReservations" :key="r.id">
+              <button @click="fulfillClaim(r)"
+                      x-text="'✓ Yes — mark ' + (r.requested_by || 'this claim') +
+                              ' (needed by ' + fmtDate(r.needed_by) + ') fulfilled'"></button>
+            </template>
+          </div>
+        </template>
       </div>
 
       <!-- Reserve: collapsed by default to keep the scan page focused
@@ -247,6 +288,7 @@
             <input id="neededBy" type="date" x-model="resvNeeded">
             <label class="field-label" for="expRelease">Expected release (optional)</label>
             <input id="expRelease" type="date" x-model="resvRelease">
+            <input type="text" x-model="resvNote" placeholder="Note — what it's for (optional)">
             <button class="go secondary" :disabled="!resvNeeded || !resvBy || busy"
                     @click="reserve()" x-text="busy ? 'Saving…' : 'Reserve'"></button>
             <div class="flash" x-show="resvFlash" x-text="resvFlash"></div>
@@ -283,9 +325,11 @@ function assetPage() {
     moveError: '',
     reservations: [],
     showReserve: false,
+    showFulfill: false,
     resvBy: localStorage.getItem('tn_name') || '',
     resvNeeded: '',
     resvRelease: '',
+    resvNote: '',
     resvFlash: '',
     resvError: '',
 
@@ -294,15 +338,22 @@ function assetPage() {
       return this.locations.filter(l => l.id !== this.asset?.current_location);
     },
 
-    // A reservation still matters if its window hasn't fully passed:
-    // either the needed-by date is ahead, or it's in use until a release
-    // date that's ahead. Fully-past reservations are just history.
-    get upcomingReservations() {
-      const today = new Date().toISOString().slice(0, 10); // "2026-07-08"
+    // A claim is active until a human closes it (fulfilled or cancelled).
+    // Empty status = rows from before the status field existed = open.
+    // Date-based hiding was deliberately removed (ADR 0007): a stale open
+    // claim is an unresolved question, so it stays visible — flagged red
+    // once its release date passes (see isExpired).
+    get activeReservations() {
       return this.reservations.filter(r =>
-        (r.needed_by && r.needed_by >= today) ||
-        (r.expected_release && r.expected_release >= today)
+        r.status !== 'fulfilled' && r.status !== 'cancelled'
       );
+    },
+
+    isExpired(r) {
+      // ISO-ish strings compare correctly as strings; equal-day is not
+      // yet expired (you have until the end of the release day).
+      const today = new Date().toISOString().slice(0, 10);
+      return !!r.expected_release && r.expected_release < today;
     },
 
     fmtDate(pbDate) {
@@ -407,6 +458,7 @@ function assetPage() {
         const dest = this.locations.find(l => l.id === this.moveTo);
         this.flash = '✓ Moved to ' + (dest ? dest.name : 'new location');
         this.moveTo = '';
+        this.showFulfill = true;   // offer to close out open claims below
         await this.load();   // refresh the plate
       } catch (err) {
         this.moveError = 'Move failed: ' + err.message +
@@ -431,18 +483,51 @@ function assetPage() {
             asset: this.asset.id,
             requested_by: this.resvBy,
             needed_by: this.resvNeeded + ' 00:00:00',
-            expected_release: this.resvRelease ? this.resvRelease + ' 00:00:00' : null
+            expected_release: this.resvRelease ? this.resvRelease + ' 00:00:00' : null,
+            note: this.resvNote || '',
+            status: 'open'
           })
         });
         if (!res.ok) throw new Error('reservation rejected (' + res.status + ')');
         this.resvFlash = '✓ Reserved — needed by ' + this.fmtDate(this.resvNeeded);
         this.resvNeeded = '';
         this.resvRelease = '';
+        this.resvNote = '';
         await this.load();   // show the new claim in the list above
       } catch (err) {
         this.resvError = 'Reservation failed: ' + err.message;
       } finally {
         this.busy = false;
+      }
+    },
+
+    // Close out a claim. Fulfilled/cancelled claims leave the pages but
+    // stay in the database — demand history is worth keeping.
+    async setStatus(r, status) {
+      const res = await TN.fetch(`${PB}/api/collections/reservations/records/${r.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      if (!res.ok) {
+        this.moveError = 'Could not update the claim (' + res.status + ')';
+        return;
+      }
+      this.flash = status === 'fulfilled' ? '✓ Claim marked fulfilled' : '✓ Claim cancelled';
+      await this.load();
+    },
+
+    async fulfillClaim(r) {
+      await this.setStatus(r, 'fulfilled');
+    },
+
+    cancelClaim(r) {
+      // One confirm — cancelling someone else's claim is a phone call
+      // you should have made first.
+      const who = r.requested_by || 'someone';
+      if (confirm('Cancel ' + who + "'s claim (needed by " +
+                  this.fmtDate(r.needed_by) + ')? They will not be notified.')) {
+        this.setStatus(r, 'cancelled');
       }
     }
   };

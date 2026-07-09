@@ -44,12 +44,23 @@ tap it. Same page.
 ## Calling dibs (reservations)
 
 Need the machine for your pour next Thursday? On the equipment page, tap
-**"Need this later? Reserve it"**, put in your name and the date you need it
-by (and when you'll give it back, if you know). Now everyone who scans that
-machine sees your claim.
+**"Need this later? Reserve it"**, put in your name, the date you need it
+by (and when you'll give it back, if you know), and what it's for. Now
+everyone who scans that machine sees your claim.
 
 Reserving doesn't lock anything — it just makes sure nobody takes it without
-knowing about you.
+knowing about you. If two people have dibs on the same machine, both claims
+show, earliest first — that's your cue to make a phone call, not the app's
+cue to pick a winner.
+
+**Closing out a claim:**
+
+- Just moved the machine to whoever reserved it? The page asks "did this
+  move hand it over?" — tap yes and the claim is done.
+- Don't need it anymore? Tap **Cancel this claim** on the claim itself.
+- A claim in red saying **"release date passed"** means someone kept it
+  past when they said they'd let it go, and nobody's closed the claim.
+  It stays red until someone does — if it's yours, deal with it.
 
 ## Materials (pipe supports, fittings, anchor bolts…)
 
