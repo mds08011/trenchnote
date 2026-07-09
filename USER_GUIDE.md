@@ -1,7 +1,17 @@
 # TrenchNote — Field Guide
 
-How to use TrenchNote on the job. No app to download, no account to make —
-if your phone camera works, you're in.
+How to use TrenchNote on the job. No app to download — your phone camera
+and one sign-in are all it takes.
+
+## First time on this phone: sign in
+
+The first time you open TrenchNote on a phone, it asks you to sign in.
+Use the crew login your PM gave you (or your own, if you have one). That's
+a **one-time thing per phone** — as long as the phone gets used now and
+then, it stays signed in.
+
+If TrenchNote ever shows you the sign-in screen again, just sign back in
+with the same login — it'll drop you right back at whatever you scanned.
 
 ## Moving a piece of equipment
 
@@ -81,6 +91,8 @@ Open TrenchNote's main page in any browser to see, at a glance:
   the thing anyway — log it when you're back in coverage.
 - **"No asset found":** the code was typed wrong, or the sticker belongs to
   gear that isn't in the system yet. Tell your PM.
+- **Wrong email or password:** logins are handed out by your PM — there's
+  no sign-up button on purpose. Ask them for the crew login.
 - **Wrong location showing:** somebody moved it without logging (see rule 1).
   Log a move to where it actually is — that both fixes the record and
   timestamps the correction.

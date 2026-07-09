@@ -52,13 +52,17 @@ automatically — no manual database setup.
 Then:
 
 1. Open **http://127.0.0.1:8090/_/** and create your admin account.
-2. In the admin UI, add a few `locations` (e.g. "Main Yard", "Northside LS"),
-   a couple of `items` (what a thing *is* — "19' Scissor Lift"), and `assets`
-   (a specific physical one, with a short `tag_code` like `A001`).
-3. Open **http://127.0.0.1:8090/labels.html**, print the QR labels, and tape
-   them on.
-4. Scan a label with your phone camera → the asset page opens in the browser →
-   tap **Move** when the thing changes sites.
+2. Still in the admin UI, create the app logins in the **users** collection:
+   one shared "field" account for crews, personal ones for managers. (There
+   is no public sign-up, on purpose.)
+3. Add a few `locations` (e.g. "Main Yard", "Northside LS"), a couple of
+   `items` (what a thing *is* — "19' Scissor Lift"), and `assets` (a
+   specific physical one, with a short `tag_code` like `A001`).
+4. Open **http://127.0.0.1:8090/labels.html**, sign in, print the QR labels,
+   and tape them on.
+5. Scan a label with your phone camera → sign in once on that phone → the
+   asset page opens in the browser → tap **Move** when the thing changes
+   sites.
 
 Bulk materials (pipe supports, fittings — items with `tracking_mode=bulk`)
 have no individual tags: open them from the dashboard's **Materials** section
@@ -96,13 +100,15 @@ before printing, so the QR codes point somewhere phones can actually reach.
 
 ## Security note
 
-Out of the box the API rules are **open for local testing** (anyone on the
-network can read and write). Running on a LAN you control is fine; **do not
-expose TrenchNote to the internet** until the rules are locked down to
-authenticated users — every open rule in `pb_migrations/` is marked with a
-`TODO(auth)` comment. PocketBase's auth is built in; this is a deliberate
-later step, not an oversight. [docs/DEPLOY.md](docs/DEPLOY.md) spells out
-which deployment options are safe today.
+**Everything requires sign-in.** Every API rule is locked to authenticated
+users; there is no public self-registration (accounts are created by the
+admin); the movements ledger can't be edited or deleted even by signed-in
+users. Field crews sign in once per phone with a shared account and the
+session renews itself on use.
+
+For internet-facing deployments, put HTTPS in front (two lines of Caddy
+config — see [docs/DEPLOY.md](docs/DEPLOY.md)) and use strong passwords on
+the admin and user accounts. That's the whole checklist.
 
 ## License
 

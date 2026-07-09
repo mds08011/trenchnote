@@ -3,14 +3,11 @@
 How to run TrenchNote somewhere other than your laptop, and how to make sure
 a dead SD card can't erase eighteen months of ledger history.
 
-> ## ⚠️ Read this before anything else
->
-> **TrenchNote's API rules are currently wide open** (Phase 1: anyone who can
-> reach the server can read and write — see the `TODO(auth)` comments in
-> `pb_migrations/`). That is acceptable on a private LAN you control. It is
-> **not acceptable on the public internet.** Do not point a domain at
-> TrenchNote or open a firewall port to it until the auth lockdown is done.
-> Option A below is available today; Option B is for after lockdown.
+> **Auth status:** as of migration `1783468806`, every API rule requires a
+> signed-in user and there is no public self-registration (see ADR 0004).
+> Both options below are safe. For anything internet-facing, use Option B's
+> HTTPS setup — never expose the bare HTTP port to the world — and use
+> strong passwords on the admin and user accounts.
 
 ## Option A — a box on the LAN (job trailer, office)
 
@@ -61,19 +58,19 @@ sudo systemctl enable --now trenchnote
 
 The service starts on boot, restarts on crashes, and survives power cuts to
 the trailer. Visit `http://192.168.1.50:8090/_/` once to create the admin
-account, seed your locations/items/assets, then print labels from
+account, create the app logins in the **users** collection (a shared field
+account for crews + personal ones for PMs), seed your
+locations/items/assets, then print labels from
 `http://192.168.1.50:8090/labels.html` with the Base URL set to
 `http://192.168.1.50:8090`.
 
 **Phones must be on the same network** (the site Wi-Fi or an office AP that
 reaches the yard). If crews are on cell data only, you need Option B.
 
-## Option B — internet-facing VPS (after auth lockdown)
+## Option B — internet-facing VPS
 
 For crews scanning over cell data from twelve different sites, TrenchNote
-needs a real domain. **Prerequisite: the `TODO(auth)` rules must be locked
-down first** — on the open internet, "anyone can write to the ledger"
-includes bots within hours.
+needs a real domain and HTTPS.
 
 Any $5-tier VPS (1 CPU, 512 MB) is more than enough. Setup is Option A plus
 a reverse proxy for HTTPS. [Caddy](https://caddyserver.com) is the boring

@@ -18,6 +18,7 @@
                    PocketBase resolves nested expands like "asset.item"
                    in the same request)
 -->
+<script src="tn-auth.js"></script>
 <script defer src="vendor/alpine.min.js"></script>
 
 <style>
@@ -119,7 +120,11 @@
 
   <header>
     <span class="mark">TrenchNote</span>
-    <a href="labels.html">Print labels →</a>
+    <span>
+      <a href="labels.html">Print labels →</a>
+      &nbsp;·&nbsp;
+      <a href="#" class="signout" @click.prevent="TN.signOut()">Sign out</a>
+    </span>
   </header>
 
   <template x-if="state === 'loading'">
@@ -213,6 +218,8 @@
 </div>
 
 <script>
+TN.requireLogin();
+
 function dashboard() {
   const PB = window.location.origin;   // PocketBase serves this page — same origin
 
@@ -290,17 +297,17 @@ function dashboard() {
       try {
         // Three reads, fired in parallel to keep slow connections snappy.
         const [locRes, assetRes, mvRes, itemRes, delRes, resvRes] = await Promise.all([
-          fetch(`${PB}/api/collections/locations/records?sort=name&perPage=200`),
-          fetch(`${PB}/api/collections/assets/records?expand=item&sort=tag_code&perPage=500`),
+          TN.fetch(`${PB}/api/collections/locations/records?sort=name&perPage=200`),
+          TN.fetch(`${PB}/api/collections/assets/records?expand=item&sort=tag_code&perPage=500`),
           // Nested expand: "asset.item" resolves the movement's asset AND
           // that asset's item in one request; plain "item" covers bulk moves.
-          fetch(`${PB}/api/collections/movements/records?sort=-created&perPage=15&expand=asset.item,item,from_location,to_location`),
+          TN.fetch(`${PB}/api/collections/movements/records?sort=-created&perPage=15&expand=asset.item,item,from_location,to_location`),
           // The two extra reads that power the Materials section:
-          fetch(`${PB}/api/collections/items/records?filter=(tracking_mode='bulk')&sort=name&perPage=200`),
+          TN.fetch(`${PB}/api/collections/items/records?filter=(tracking_mode='bulk')&sort=name&perPage=200`),
           // deliveries = bulk movements that entered from outside the
           // system (no from_location) — all we need for totals
-          fetch(`${PB}/api/collections/movements/records?filter=(item!=''%26%26from_location='')&perPage=500`),
-          fetch(`${PB}/api/collections/reservations/records?sort=needed_by&perPage=100&expand=asset.item`),
+          TN.fetch(`${PB}/api/collections/movements/records?filter=(item!=''%26%26from_location='')&perPage=500`),
+          TN.fetch(`${PB}/api/collections/reservations/records?sort=needed_by&perPage=100&expand=asset.item`),
         ]);
         const bad = [locRes, assetRes, mvRes, itemRes, delRes, resvRes].find(r => !r.ok);
         if (bad) throw new Error('API error ' + bad.status);

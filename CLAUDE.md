@@ -123,6 +123,8 @@ trenchnote/
 │   ├── asset.html         # scan landing page: view + move an asset
 │   ├── material.html      # bulk item: stock per location (derived) + move quantities
 │   ├── labels.html        # print QR labels for all assets
+│   ├── login.html         # sign in; token to localStorage
+│   ├── tn-auth.js         # shared auth helper (TN.fetch / TN.requireLogin)
 │   └── vendor/            # vendored alpine.min.js, qrcode.min.js
 └── scripts/
     └── setup.sh           # download the right PocketBase binary for the OS
@@ -149,11 +151,17 @@ Ignored: the PocketBase binary (`pocketbase` / `pocketbase.exe`) and `pb_data/`
 
 ## Security posture
 
-Phase 1 API rules are permissive (public list/view/create/update) for local
-testing. **Every permissive rule must carry a `TODO(auth)` comment** marking the
-rule that becomes `@request.auth.id != ""` before TrenchNote is exposed to the
-internet. PocketBase auth is built in; locking down is a later, deliberate step —
-not an accident waiting to happen.
+**Phase 2 — locked down** (migration `1783468806`, ADR 0004). Every API rule
+requires `@request.auth.id != ""`; there is no public self-signup
+(`users.createRule` is null — accounts are created in the admin UI). Access
+model: crews share one field account signed in once per phone; PMs get
+personal accounts. Frontend plumbing: `pb_public/tn-auth.js` (`TN.fetch`
+attaches the token, `TN.requireLogin` gates every page) + `login.html`.
+Sessions slide forward via `auth-refresh` on each page load — this is also
+how expired tokens are detected, because PocketBase treats a bad token on
+reads as a guest (200 + empty list), NOT a 401. The movements ledger stays
+append-only: update/delete are superuser-only. New collections must ship
+with auth-required rules from day one.
 
 ## Non-goals — push back if asked to build these
 

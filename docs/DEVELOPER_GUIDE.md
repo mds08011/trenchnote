@@ -30,6 +30,8 @@ trenchnote/
 │   ├── asset.html          # QR landing page: view, move, reserve one asset
 │   ├── material.html       # bulk item: derived stock per location, move quantities
 │   ├── labels.html         # printable QR sheet for all assets
+│   ├── login.html          # sign-in; stores the PocketBase token in localStorage
+│   ├── tn-auth.js          # shared auth helper — TN.fetch, TN.requireLogin
 │   └── vendor/             # alpine.min.js, qrcode.min.js — committed on purpose
 ├── scripts/setup.sh        # downloads the right PocketBase binary
 └── docs/                   # you are here
@@ -138,6 +140,35 @@ Patterns you'll see repeatedly (all commented in the source):
   a division-sized deployment; pagination is the known upgrade path if a
   ledger outgrows it.
 
+## Auth
+
+Since migration `1783468806` (see ADR 0004), **every API rule requires a
+signed-in user**. The model: crews share one field account signed in once
+per phone; PMs get personal accounts; accounts are created in the admin UI
+(collections → users) — public self-signup is disabled.
+
+The frontend plumbing is deliberately small:
+
+- **`login.html`** POSTs to `/api/collections/users/auth-with-password` and
+  stores `{ token }` in localStorage (`tn_token`), then returns the user to
+  the page they were headed for (`?next=`, restricted to same-site paths).
+- **`tn-auth.js`** is shared by all pages — the one exception to
+  "self-contained pages", because drifting auth code is how lockouts and
+  holes happen. Pages call `TN.requireLogin()` at the top of their script
+  and use `TN.fetch()` (attaches the `Authorization` header) instead of
+  `fetch()`.
+- **Expiry is caught by `auth-refresh`, not by status codes.** PocketBase
+  treats a missing/invalid token on reads as a guest and returns **200 with
+  empty lists**, not 401 — so you cannot detect a stale token from a list
+  response. `TN.requireLogin()` fires a background `auth-refresh` on every
+  page load: invalid → clear token, bounce to login; valid → store the
+  **new** token it returns, sliding the session forward (a phone in regular
+  use never logs out).
+
+When testing rules by hand, remember the guest behavior: an
+unauthenticated list "succeeding" with `totalItems: 0` is the lockdown
+*working*, not broken. Writes fail loudly (400/403).
+
 ## Working on the schema
 
 - Never change collections in the admin UI on a real instance — the change
@@ -149,9 +180,9 @@ Patterns you'll see repeatedly (all commented in the source):
 - PocketBase 0.23+ does **not** add `created`/`updated` automatically; they
   are explicit `autodate` fields in every collection migration. Forget them
   and the ledger has no timestamps.
-- Every permissive API rule carries a `TODO(auth)` comment — the pre-internet
-  lockdown changes each `""` rule to require `@request.auth.id != ""`. Keep
-  that discipline in new migrations.
+- The `TODO(auth)` lockdown happened in migration `1783468806`. New
+  collections must ship with auth-required rules from day one
+  (`@request.auth.id != ""`), never `""`.
 
 ## Local development
 

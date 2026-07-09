@@ -20,6 +20,7 @@
   create a location like "Installed — Northside" and move it there. The
   ledger stays complete and vendor disputes stay winnable.
 -->
+<script src="tn-auth.js"></script>
 <script defer src="vendor/alpine.min.js"></script>
 
 <style>
@@ -189,6 +190,8 @@
 </div>
 
 <script>
+TN.requireLogin();
+
 function materialPage() {
   const PB = window.location.origin;   // PocketBase serves this page — same origin
 
@@ -240,12 +243,12 @@ function materialPage() {
       }
       try {
         const [itemRes, locRes, mvRes] = await Promise.all([
-          fetch(`${PB}/api/collections/items/records/${this.id}`),
-          fetch(`${PB}/api/collections/locations/records?sort=name&perPage=200`),
+          TN.fetch(`${PB}/api/collections/items/records/${this.id}`),
+          TN.fetch(`${PB}/api/collections/locations/records?sort=name&perPage=200`),
           // Every bulk movement of THIS item. perPage caps at 500 — plenty
           // for years of a single material; revisit with paging if a ledger
           // ever outgrows it.
-          fetch(`${PB}/api/collections/movements/records?filter=(item='${this.id}')&sort=-created&perPage=500`),
+          TN.fetch(`${PB}/api/collections/movements/records?filter=(item='${this.id}')&sort=-created&perPage=500`),
         ]);
         if (!itemRes.ok) throw new Error('material not found (' + itemRes.status + ')');
         this.item = await itemRes.json();
@@ -266,7 +269,7 @@ function materialPage() {
       try {
         // One POST, no cache to update afterwards: bulk stock is always
         // derived from the ledger, so the ledger entry IS the whole move.
-        const res = await fetch(`${PB}/api/collections/movements/records`, {
+        const res = await TN.fetch(`${PB}/api/collections/movements/records`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

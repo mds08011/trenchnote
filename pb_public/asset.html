@@ -15,7 +15,12 @@
 
   Alpine.js is vendored locally (see vendor/README.md) — zero external
   requests at runtime.
+
+  Auth: every API call goes through TN.fetch (tn-auth.js), which attaches
+  the token saved by login.html. No token = redirected to sign in, then
+  bounced back here so the scanned QR still lands on the right asset.
 -->
+<script src="tn-auth.js"></script>
 <script defer src="vendor/alpine.min.js"></script>
 
 <style>
@@ -255,6 +260,8 @@
 </div>
 
 <script>
+TN.requireLogin();
+
 function assetPage() {
   // PocketBase serves this page from pb_public/, so the API lives at
   // the same origin. This is why no base-URL config is needed —
@@ -324,7 +331,7 @@ function assetPage() {
         //    and location records in the same request (they arrive under
         //    asset.expand.*), saving two round-trips on a slow connection.
         const filter = encodeURIComponent(`tag_code='${this.code.replace(/'/g, "\\'")}'`);
-        const res = await fetch(
+        const res = await TN.fetch(
           `${PB}/api/collections/assets/records?filter=(${filter})&expand=item,current_location&perPage=1`
         );
         if (!res.ok) throw new Error(`API error ${res.status}`);
@@ -337,14 +344,14 @@ function assetPage() {
         this.asset = data.items[0];
 
         // 2. Load all locations for the destination dropdown.
-        const locRes = await fetch(`${PB}/api/collections/locations/records?sort=name&perPage=200`);
+        const locRes = await TN.fetch(`${PB}/api/collections/locations/records?sort=name&perPage=200`);
         this.locations = (await locRes.json()).items;
 
         // 3. "How long has it been here" comes from the ledger: time since
         //    this asset's latest movement (sort=-created, take one). Falls
         //    back to the asset record's created date if it has never moved.
         const mvFilter = encodeURIComponent(`asset='${this.asset.id}'`);
-        const mvRes = await fetch(
+        const mvRes = await TN.fetch(
           `${PB}/api/collections/movements/records?filter=(${mvFilter})&sort=-created&perPage=1`
         );
         const mv = (await mvRes.json()).items[0];
@@ -354,7 +361,7 @@ function assetPage() {
         // 4. Reservations on this asset, soonest first. Past ones are
         //    filtered out client-side (see upcomingReservations).
         const rFilter = encodeURIComponent(`asset='${this.asset.id}'`);
-        const rRes = await fetch(
+        const rRes = await TN.fetch(
           `${PB}/api/collections/reservations/records?filter=(${rFilter})&sort=needed_by&perPage=20`
         );
         this.reservations = (await rRes.json()).items;
@@ -377,7 +384,7 @@ function assetPage() {
         //    truth. If the second request fails we have a true ledger and a
         //    stale cache (visible, fixable); the other order could lose the
         //    move entirely.
-        const mvRes = await fetch(`${PB}/api/collections/movements/records`, {
+        const mvRes = await TN.fetch(`${PB}/api/collections/movements/records`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -390,7 +397,7 @@ function assetPage() {
         if (!mvRes.ok) throw new Error('movement rejected (' + mvRes.status + ')');
 
         // 2. Then update the asset's cached current_location.
-        const upRes = await fetch(`${PB}/api/collections/assets/records/${this.asset.id}`, {
+        const upRes = await TN.fetch(`${PB}/api/collections/assets/records/${this.asset.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ current_location: this.moveTo })
@@ -417,7 +424,7 @@ function assetPage() {
       try {
         // Date inputs give "2026-07-14"; PocketBase date fields accept
         // that with a time appended.
-        const res = await fetch(`${PB}/api/collections/reservations/records`, {
+        const res = await TN.fetch(`${PB}/api/collections/reservations/records`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
