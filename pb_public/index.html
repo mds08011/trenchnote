@@ -203,7 +203,8 @@
             <span class="tag" x-text="m.expand?.asset?.tag_code || (m.quantity + '×')"></span>
             <span x-text="m.expand?.asset?.expand?.item?.name || m.expand?.item?.name || ''"></span>
             — <span x-text="m.expand?.from_location?.name || 'outside system'"></span>
-            → <strong x-text="m.expand?.to_location?.name || '?'"></strong>
+            <!-- A bulk move with no destination is a consumption -->
+            → <strong x-text="m.expand?.to_location?.name || (m.item ? 'used / consumed' : '?')"></strong>
           </div>
           <div class="who">
             <span x-text="m.moved_by || 'unspecified'"></span> ·
@@ -231,6 +232,7 @@ function dashboard() {
     movements: [],
     bulkItems: [],
     deliveries: [],
+    consumptions: [],
     reservations: [],
 
     // Locations in name order, each with its assets attached; a synthetic
@@ -251,14 +253,17 @@ function dashboard() {
       return groups.sort((x, y) => y.assets.length - x.assets.length);
     },
 
-    // Total on hand per bulk item. Nothing ever leaves the system
-    // (to_location is required), so the total in circulation is simply the
-    // sum of quantities that ENTERED from outside — movements with no
-    // from_location. Per-location breakdown lives on material.html.
+    // Total on hand per bulk item: what ENTERED from outside (deliveries,
+    // no from_location) minus what LEFT as consumed (no to_location).
+    // Internal transfers net to zero, so they don't need fetching here.
+    // Per-location breakdown lives on material.html.
     get materials() {
       const totals = {};
       for (const d of this.deliveries) {
         totals[d.item] = (totals[d.item] || 0) + d.quantity;
+      }
+      for (const c of this.consumptions) {
+        totals[c.item] = (totals[c.item] || 0) - c.quantity;
       }
       return this.bulkItems
         .map(i => ({ id: i.id, name: i.name, total: totals[i.id] || 0 }))
@@ -296,7 +301,7 @@ function dashboard() {
     async load() {
       try {
         // Three reads, fired in parallel to keep slow connections snappy.
-        const [locRes, assetRes, mvRes, itemRes, delRes, resvRes] = await Promise.all([
+        const [locRes, assetRes, mvRes, itemRes, delRes, consRes, resvRes] = await Promise.all([
           TN.fetch(`${PB}/api/collections/locations/records?sort=name&perPage=200`),
           TN.fetch(`${PB}/api/collections/assets/records?expand=item&sort=tag_code&perPage=500`),
           // Nested expand: "asset.item" resolves the movement's asset AND
@@ -304,18 +309,21 @@ function dashboard() {
           TN.fetch(`${PB}/api/collections/movements/records?sort=-created&perPage=15&expand=asset.item,item,from_location,to_location`),
           // The two extra reads that power the Materials section:
           TN.fetch(`${PB}/api/collections/items/records?filter=(tracking_mode='bulk')&sort=name&perPage=200`),
-          // deliveries = bulk movements that entered from outside the
-          // system (no from_location) — all we need for totals
+          // deliveries = bulk movements in from outside (no from_location);
+          // consumptions = bulk movements out of the system (no
+          // to_location). Deliveries minus consumptions = total on hand.
           TN.fetch(`${PB}/api/collections/movements/records?filter=(item!=''%26%26from_location='')&perPage=500`),
+          TN.fetch(`${PB}/api/collections/movements/records?filter=(item!=''%26%26to_location='')&perPage=500`),
           TN.fetch(`${PB}/api/collections/reservations/records?sort=needed_by&perPage=100&expand=asset.item`),
         ]);
-        const bad = [locRes, assetRes, mvRes, itemRes, delRes, resvRes].find(r => !r.ok);
+        const bad = [locRes, assetRes, mvRes, itemRes, delRes, consRes, resvRes].find(r => !r.ok);
         if (bad) throw new Error('API error ' + bad.status);
         this.locations = (await locRes.json()).items;
         this.assets = (await assetRes.json()).items;
         this.movements = (await mvRes.json()).items;
         this.bulkItems = (await itemRes.json()).items;
         this.deliveries = (await delRes.json()).items;
+        this.consumptions = (await consRes.json()).items;
         this.reservations = (await resvRes.json()).items;
         this.state = 'ready';
       } catch (err) {

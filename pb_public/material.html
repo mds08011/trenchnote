@@ -16,9 +16,15 @@
   numbers look wrong, the fix is a correcting movement — never editing
   history.
 
-  Tip: material that gets installed/consumed on a job doesn't vanish —
-  create a location like "Installed — Northside" and move it there. The
-  ledger stays complete and vendor disputes stay winnable.
+  Three kinds of bulk movement, told apart by which locations are set
+  (enforced server-side, see migration 1783468807):
+    receive   from empty, to set     — delivery from outside
+    transfer  from set,   to set     — between locations
+    consume   from set,   to EMPTY   — installed/used; leaves stock but
+                                       stays in the ledger forever
+  If you want to track WHERE material was installed (not just that it's
+  gone), the alternative to consuming is a location like "Installed —
+  Northside" and a normal transfer.
 -->
 <script src="tn-auth.js"></script>
 <script defer src="vendor/alpine.min.js"></script>
@@ -79,6 +85,13 @@
   }
   .stock-row.total { border-top: 2px solid var(--ink); }
   .stock-row.total .loc { color: var(--steel); font-size: 13px; letter-spacing: .1em; }
+  /* A negative balance is a data error, not information — make it look
+     like one. */
+  .stock-row.neg .qty, .stock-row.neg .loc { color: #a1160a; }
+  .neg-warn {
+    padding: 10px 16px; font-size: 13px; font-weight: 600;
+    background: #fdecea; color: #a1160a;
+  }
   .empty { color: var(--steel); padding: 14px 16px; font-size: 14px; }
 
   /* ---- Move form --------------------------------------------------- */
@@ -139,8 +152,8 @@
       <div class="plate">
         <div class="eyebrow">Stock on hand</div>
         <template x-for="s in stock" :key="s.id">
-          <div class="stock-row">
-            <span class="loc" x-text="s.name"></span>
+          <div class="stock-row" :class="{ neg: s.qty < 0 }">
+            <span class="loc" x-text="(s.qty < 0 ? '⚠ ' : '') + s.name"></span>
             <span class="qty" x-text="s.qty"></span>
           </div>
         </template>
@@ -150,6 +163,11 @@
         <div class="stock-row total" x-show="stock.length">
           <span class="loc">TOTAL</span>
           <span class="qty" x-text="total"></span>
+        </div>
+        <div class="neg-warn" x-show="hasNegative">
+          ⚠ A negative count means the ledger and the ground disagree —
+          more left this spot on paper than ever arrived. Fix it with a
+          correcting move (usually a delivery that was never logged).
         </div>
       </div>
 
@@ -173,12 +191,19 @@
           <template x-for="loc in locations.filter(l => l.id !== fromLoc)" :key="loc.id">
             <option :value="loc.id" x-text="loc.name"></option>
           </template>
+          <!-- Consume: leaves stock without landing anywhere. Only makes
+               sense when taking FROM somewhere. -->
+          <option value="@consumed" x-show="fromLoc">Used / consumed (leaves stock)</option>
         </select>
+        <p class="onhand" x-show="toLoc === '@consumed' && !fromLoc">
+          Pick where it's being used from first.
+        </p>
 
         <input type="number" x-model.number="qty" min="1" step="1" placeholder="Quantity">
+        <input type="text" x-model="note" placeholder="Note — PO #, slip #, where installed (optional)">
         <input type="text" x-model="movedBy" placeholder="Your name (optional)">
 
-        <button class="go" :disabled="!toLoc || !(qty > 0) || busy" @click="move()"
+        <button class="go" :disabled="!canSubmit || busy" @click="move()"
                 x-text="busy ? 'Saving…' : 'Log move'"></button>
 
         <div class="flash" x-show="flash" x-text="flash"></div>
@@ -205,17 +230,22 @@ function materialPage() {
     fromLoc: '',
     toLoc: '',
     qty: null,
+    note: '',
     movedBy: localStorage.getItem('tn_name') || '',
     busy: false,
     flash: '',
     moveError: '',
 
     // Net quantity per location: sum of moves in, minus moves out.
+    // Consumed movements have no to_location, so they subtract from the
+    // source and add nowhere — that's how stock leaves the system.
     // Only locations with a non-zero balance are shown.
     get stock() {
       const net = {};
       for (const m of this.movements) {
-        net[m.to_location] = (net[m.to_location] || 0) + m.quantity;
+        if (m.to_location) {
+          net[m.to_location] = (net[m.to_location] || 0) + m.quantity;
+        }
         if (m.from_location) {
           net[m.from_location] = (net[m.from_location] || 0) - m.quantity;
         }
@@ -228,6 +258,18 @@ function materialPage() {
 
     get total() {
       return this.stock.reduce((sum, s) => sum + s.qty, 0);
+    },
+
+    get hasNegative() {
+      return this.stock.some(s => s.qty < 0);
+    },
+
+    // Consuming requires a source; everything else just needs a
+    // destination and a quantity.
+    get canSubmit() {
+      if (!(this.qty > 0) || !this.toLoc) return false;
+      if (this.toLoc === '@consumed' && !this.fromLoc) return false;
+      return true;
     },
 
     stockAt(locId) {
@@ -269,6 +311,9 @@ function materialPage() {
       try {
         // One POST, no cache to update afterwards: bulk stock is always
         // derived from the ledger, so the ledger entry IS the whole move.
+        // "@consumed" is a UI sentinel — the ledger just gets an empty
+        // to_location, which is what "consumed" means server-side.
+        const consuming = this.toLoc === '@consumed';
         const res = await TN.fetch(`${PB}/api/collections/movements/records`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -276,16 +321,20 @@ function materialPage() {
             item: this.id,
             quantity: this.qty,
             from_location: this.fromLoc || null,
-            to_location: this.toLoc,
-            moved_by: this.movedBy || 'unspecified'
+            to_location: consuming ? null : this.toLoc,
+            moved_by: this.movedBy || 'unspecified',
+            note: this.note || ''
           })
         });
         if (!res.ok) throw new Error('movement rejected (' + res.status + ')');
 
         const dest = this.locations.find(l => l.id === this.toLoc);
-        this.flash = '✓ ' + this.qty + ' → ' + (dest ? dest.name : 'destination');
+        this.flash = consuming
+          ? '✓ ' + this.qty + ' used'
+          : '✓ ' + this.qty + ' → ' + (dest ? dest.name : 'destination');
         this.qty = null;
         this.toLoc = '';
+        this.note = '';
         await this.load();   // re-derive the stock plate
       } catch (err) {
         this.moveError = 'Move failed: ' + err.message;

@@ -62,10 +62,19 @@ Stuff that comes by the hundred doesn't get individual stickers. Instead:
    delivery", pick where it was unloaded, type how many, hit **LOG MOVE**.
 4. **Hauling 40 supports from the yard to your site?** Pick the yard as
    "From", your site as "To", type 40, log it.
+5. **Installed it or used it up?** Pick where it came from, choose
+   **"Used / consumed"** as the destination, type how many. It comes off
+   the count but stays in the log forever. Put where it went in the note
+   ("clarifier weir, bay 2") — future you will thank you.
 
 The page shows how many the log says are at the "From" spot. If that number
 looks wrong compared to what's actually on the ground, tell your PM — the
 fix is logging a correcting move, and it takes ten seconds.
+
+If a spot ever shows a **red negative number**, that's the app telling you
+the log and the ground disagree — more left that spot on paper than ever
+arrived. Usually it's a delivery nobody logged. Log it now and the number
+goes right.
 
 ## The dashboard
 

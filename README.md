@@ -68,8 +68,9 @@ Bulk materials (pipe supports, fittings — items with `tracking_mode=bulk`)
 have no individual tags: open them from the dashboard's **Materials** section
 to log deliveries and moves as quantities. Stock per location is always
 derived from the movement ledger, never stored. Material that gets installed
-doesn't vanish — make a location like "Installed — Northside" and move it
-there, so the ledger stays complete for vendor disputes.
+doesn't vanish from history — log it as **Used / consumed** (it leaves stock
+but stays in the ledger, with a note for the PO or where it went), so vendor
+disputes stay winnable.
 
 Need a machine for an upcoming pour? Any asset page has a **Reserve** option;
 the claim shows up as a "spoken for" warning to anyone who scans that asset,

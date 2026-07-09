@@ -1,6 +1,9 @@
 # ADR 0002 — One append-only ledger; locations and stock are derived
 
 **Status:** accepted · **Date:** 2026-07-08 (bulk extension same day)
+**Amended:** 2026-07-09 — the "nothing leaves the system" clause is
+superseded by [ADR 0005](0005-consumption-movements-without-destination.md)
+(consumption: bulk movements with no destination).
 
 ## Context
 

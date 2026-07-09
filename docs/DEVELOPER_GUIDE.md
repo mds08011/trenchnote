@@ -55,10 +55,10 @@ What a thing *is* ("19' Scissor Lift"), never a specific one.
 
 ### locations
 
-`name` + `type` (`jobsite` | `yard` | `warehouse` | `transit`). Convention,
-not schema: material that gets installed/consumed is moved to a location you
-create for that purpose (e.g. "Installed — Northside"), so the ledger never
-has an exit door.
+`name` + `type` (`jobsite` | `yard` | `warehouse` | `transit`). Optional
+convention: if you want to track *where* material was installed (not just
+that it was used), create a location like "Installed — Northside" and
+transfer there instead of consuming (see ADR 0005).
 
 ### assets — a specific physical thing
 
@@ -78,11 +78,19 @@ set:
 | Asset move | set | empty | 0 |
 | Bulk move | empty | set | > 0 |
 
-The either/or shape is enforced **server-side** by the collection's
-`createRule` (see `pb_migrations/1783468805_bulk_movements.js`), so no client
-can write a malformed row. `from_location` empty means "entered from outside
-the system" (a delivery, a new rental). `to_location` is always required.
-The timestamp is the `created` autodate field.
+For bulk moves, the locations then say *which kind* of move it is:
+
+| | `from_location` | `to_location` | meaning |
+|---|---|---|---|
+| Receive | empty | set | delivery from outside |
+| Transfer | set | set | between locations |
+| Consume | set | empty | installed/used — leaves stock, stays in history |
+
+Asset moves always require a `to_location` — a physical machine lands
+somewhere. All of these shapes are enforced **server-side** by the
+collection's `createRule` (migrations `1783468805`–`1783468807`), so no
+client can write a malformed row. The timestamp is the `created` autodate
+field.
 
 `updateRule` and `deleteRule` are `null` (admin-only) **even in the
 permissive Phase 1** — a ledger you can rewrite is not a ledger. Corrections
@@ -107,11 +115,14 @@ Everything else in the codebase follows from these:
 
 2. **Bulk stock is derived, never stored.** `material.html` computes
    stock-on-hand per location on every load by summing the ledger: quantity
-   moved in minus quantity moved out, per location. There is no column to
-   drift out of sync. The dashboard's "total on hand" uses a shortcut that
-   falls out of the model: since `to_location` is required, nothing ever
-   leaves the system, so an item's total in circulation equals the sum of its
-   deliveries (movements with no `from_location`).
+   moved in minus quantity moved out, per location (a consume subtracts from
+   its source and adds nowhere). There is no column to drift out of sync.
+   The dashboard's "total on hand" uses the shortcut that falls out of the
+   model: internal transfers net to zero, so an item's total equals its
+   deliveries (no `from_location`) minus its consumptions (no
+   `to_location`). Negative balances are rendered flagged, never hidden —
+   they mean the ledger and the ground disagree, and the fix is a correcting
+   movement.
 
 ## Frontend patterns
 

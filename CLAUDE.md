@@ -79,13 +79,17 @@ reproduce the entire database from the repo.
   `current_location` (relation→locations).
 - **`movements`** — the append-only ledger and **source of truth**. One
   collection holds both kinds of moves, distinguished by which fields are set:
-  - *Asset move:* `asset` (relation→assets) set; `item` empty, `quantity` 0.
+  - *Asset move:* `asset` (relation→assets) set; `item` empty, `quantity` 0;
+    `to_location` required (a machine always lands somewhere).
   - *Bulk move:* `item` (relation→items) + `quantity` (number > 0) set;
-    `asset` empty.
-  Plus `from_location` (relation; empty = entered from outside the system),
-  `to_location` (relation, required), `moved_by` (text), `note` (text). The
-  either/or shape is enforced server-side by the collection's `createRule`.
-  Timestamp is the `created` autodate field.
+    `asset` empty. The locations say which kind: to-only = receive (delivery
+    from outside), from+to = transfer, from-only = **consume** (installed/
+    used; leaves stock, stays in the ledger — ADR 0005). Stock per location
+    is derived in-minus-out; dashboard totals are deliveries − consumptions;
+    negative balances are flagged as data errors, never hidden.
+  Plus `moved_by` (text), `note` (text — PO/slip numbers). All shapes are
+  enforced server-side by the collection's `createRule` (migrations
+  1783468805–1783468807). Timestamp is the `created` autodate field.
 - **`reservations`** — `asset` (relation), `requested_by`, `needed_by` (date),
   `expected_release` (date). UI: reserve + "spoken for" banner on asset.html,
   upcoming list on the dashboard. Dates are stored date-only at UTC midnight —
