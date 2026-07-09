@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TrenchNote — Material</title>
+
+<!--
+  TrenchNote bulk-material page — the counterpart of asset.html for
+  tracking_mode=bulk items (pipe supports, fittings, anchor bolts...).
+  Opened as:  material.html?id={item_id}
+
+  There is no "current location" column for bulk stock anywhere in the
+  database. This page DERIVES stock-on-hand per location by summing the
+  movements ledger: quantity moved IN minus quantity moved OUT. If the
+  numbers look wrong, the fix is a correcting movement — never editing
+  history.
+
+  Tip: material that gets installed/consumed on a job doesn't vanish —
+  create a location like "Installed — Northside" and move it there. The
+  ledger stays complete and vendor disputes stay winnable.
+-->
+<script defer src="vendor/alpine.min.js"></script>
+
+<style>
+  /* Same field-utility tokens as asset.html — one design, one app. */
+  :root {
+    --ink:    #14161a;
+    --paper:  #ffffff;
+    --steel:  #5b6470;
+    --line:   #d8dce1;
+    --safety: #ff5a1f;
+    --go:     #1b8a4b;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--paper); color: var(--ink);
+    line-height: 1.45;
+    max-width: 480px; margin: 0 auto;
+    padding: 16px 16px 48px;
+  }
+
+  header {
+    display: flex; justify-content: space-between; align-items: baseline;
+    border-bottom: 3px solid var(--ink);
+    padding-bottom: 10px; margin-bottom: 20px;
+  }
+  .mark { font-weight: 800; letter-spacing: .04em; font-size: 14px; text-transform: uppercase; }
+  header a { color: var(--safety); font-weight: 700; font-size: 14px; text-decoration: none; }
+
+  h1 { font-size: 26px; font-weight: 800; letter-spacing: -0.01em; }
+  .meta { color: var(--steel); font-size: 14px; margin-top: 2px; }
+  .badge {
+    display: inline-block; font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .08em;
+    padding: 3px 8px; margin-top: 8px;
+    border: 1.5px solid currentColor; color: var(--steel);
+  }
+
+  /* ---- Stock plate: where the material sits right now ------------- */
+  .plate { margin-top: 22px; border: 3px solid var(--ink); }
+  .plate .eyebrow {
+    font-size: 11px; font-weight: 700; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--steel);
+    padding: 12px 16px 0;
+  }
+  .stock-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+  .stock-row:last-child { border-bottom: none; }
+  .stock-row .loc { font-weight: 800; text-transform: uppercase; font-size: 17px; }
+  .stock-row .qty {
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+    font-weight: 700; font-size: 22px;
+  }
+  .stock-row.total { border-top: 2px solid var(--ink); }
+  .stock-row.total .loc { color: var(--steel); font-size: 13px; letter-spacing: .1em; }
+  .empty { color: var(--steel); padding: 14px 16px; font-size: 14px; }
+
+  /* ---- Move form --------------------------------------------------- */
+  .move { margin-top: 26px; }
+  .move h2 {
+    font-size: 12px; font-weight: 700; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--steel); margin-bottom: 10px;
+  }
+  select, input[type=text], input[type=number] {
+    width: 100%; min-height: 56px;
+    font: inherit; font-size: 17px;
+    padding: 12px; margin-bottom: 10px;
+    border: 2px solid var(--ink); border-radius: 0;
+    background: var(--paper); color: var(--ink);
+  }
+  .onhand { font-size: 13px; color: var(--steel); margin: -6px 0 10px; }
+  button.go {
+    width: 100%; min-height: 60px;
+    font: inherit; font-size: 18px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: .05em;
+    background: var(--safety); color: #fff;
+    border: none; cursor: pointer;
+  }
+  button.go:disabled { background: var(--line); color: var(--steel); cursor: default; }
+  button.go:focus-visible, select:focus-visible, input:focus-visible {
+    outline: 3px solid var(--safety); outline-offset: 2px;
+  }
+
+  .flash { margin-top: 14px; padding: 14px; font-weight: 700; color: #fff; background: var(--go); }
+  .error { margin-top: 14px; padding: 14px; background: #fdecea; color: #a1160a; font-weight: 600; }
+  .loading { color: var(--steel); padding: 40px 0; text-align: center; }
+</style>
+</head>
+<body>
+
+<div x-data="materialPage()" x-init="load()">
+
+  <header>
+    <span class="mark">TrenchNote</span>
+    <a href="./">Dashboard</a>
+  </header>
+
+  <template x-if="state === 'loading'">
+    <p class="loading">Loading material…</p>
+  </template>
+
+  <template x-if="state === 'error'">
+    <div class="error" x-text="errorMsg"></div>
+  </template>
+
+  <template x-if="state === 'ready'">
+    <main>
+      <h1 x-text="item.name"></h1>
+      <p class="meta" x-show="item.category" x-text="item.category"></p>
+      <span class="badge">Bulk material</span>
+
+      <!-- Stock on hand, derived from the ledger on every load -->
+      <div class="plate">
+        <div class="eyebrow">Stock on hand</div>
+        <template x-for="s in stock" :key="s.id">
+          <div class="stock-row">
+            <span class="loc" x-text="s.name"></span>
+            <span class="qty" x-text="s.qty"></span>
+          </div>
+        </template>
+        <div class="empty" x-show="!stock.length">
+          Nothing on hand — log a delivery below.
+        </div>
+        <div class="stock-row total" x-show="stock.length">
+          <span class="loc">TOTAL</span>
+          <span class="qty" x-text="total"></span>
+        </div>
+      </div>
+
+      <!-- Move / receive form -->
+      <div class="move">
+        <h2>Move material</h2>
+
+        <select x-model="fromLoc" aria-label="From">
+          <option value="">New delivery (from outside)</option>
+          <template x-for="loc in locations" :key="loc.id">
+            <option :value="loc.id" x-text="'From: ' + loc.name"></option>
+          </template>
+        </select>
+        <!-- Show what the ledger says is at the chosen source, so a crew
+             moving "more than exists" notices the count has drifted -->
+        <p class="onhand" x-show="fromLoc"
+           x-text="'On hand there per ledger: ' + (stockAt(fromLoc) || 0)"></p>
+
+        <select x-model="toLoc" aria-label="To">
+          <option value="" disabled selected>To…</option>
+          <template x-for="loc in locations.filter(l => l.id !== fromLoc)" :key="loc.id">
+            <option :value="loc.id" x-text="loc.name"></option>
+          </template>
+        </select>
+
+        <input type="number" x-model.number="qty" min="1" step="1" placeholder="Quantity">
+        <input type="text" x-model="movedBy" placeholder="Your name (optional)">
+
+        <button class="go" :disabled="!toLoc || !(qty > 0) || busy" @click="move()"
+                x-text="busy ? 'Saving…' : 'Log move'"></button>
+
+        <div class="flash" x-show="flash" x-text="flash"></div>
+        <div class="error" x-show="moveError" x-text="moveError"></div>
+      </div>
+    </main>
+  </template>
+
+</div>
+
+<script>
+function materialPage() {
+  const PB = window.location.origin;   // PocketBase serves this page — same origin
+
+  return {
+    id: new URLSearchParams(location.search).get('id') || '',
+    state: 'loading',
+    errorMsg: '',
+    item: null,
+    locations: [],
+    movements: [],
+    fromLoc: '',
+    toLoc: '',
+    qty: null,
+    movedBy: localStorage.getItem('tn_name') || '',
+    busy: false,
+    flash: '',
+    moveError: '',
+
+    // Net quantity per location: sum of moves in, minus moves out.
+    // Only locations with a non-zero balance are shown.
+    get stock() {
+      const net = {};
+      for (const m of this.movements) {
+        net[m.to_location] = (net[m.to_location] || 0) + m.quantity;
+        if (m.from_location) {
+          net[m.from_location] = (net[m.from_location] || 0) - m.quantity;
+        }
+      }
+      return this.locations
+        .map(l => ({ id: l.id, name: l.name, qty: net[l.id] || 0 }))
+        .filter(s => s.qty !== 0)
+        .sort((a, b) => b.qty - a.qty);
+    },
+
+    get total() {
+      return this.stock.reduce((sum, s) => sum + s.qty, 0);
+    },
+
+    stockAt(locId) {
+      const s = this.stock.find(s => s.id === locId);
+      return s ? s.qty : 0;
+    },
+
+    async load() {
+      if (!this.id) {
+        this.state = 'error';
+        this.errorMsg = 'No material id in the URL. Open this page as material.html?id=…';
+        return;
+      }
+      try {
+        const [itemRes, locRes, mvRes] = await Promise.all([
+          fetch(`${PB}/api/collections/items/records/${this.id}`),
+          fetch(`${PB}/api/collections/locations/records?sort=name&perPage=200`),
+          // Every bulk movement of THIS item. perPage caps at 500 — plenty
+          // for years of a single material; revisit with paging if a ledger
+          // ever outgrows it.
+          fetch(`${PB}/api/collections/movements/records?filter=(item='${this.id}')&sort=-created&perPage=500`),
+        ]);
+        if (!itemRes.ok) throw new Error('material not found (' + itemRes.status + ')');
+        this.item = await itemRes.json();
+        this.locations = (await locRes.json()).items;
+        this.movements = (await mvRes.json()).items;
+        this.state = 'ready';
+      } catch (err) {
+        this.state = 'error';
+        this.errorMsg = 'Could not load. Is PocketBase running? (' + err.message + ')';
+      }
+    },
+
+    async move() {
+      this.busy = true;
+      this.flash = '';
+      this.moveError = '';
+      if (this.movedBy) localStorage.setItem('tn_name', this.movedBy);
+      try {
+        // One POST, no cache to update afterwards: bulk stock is always
+        // derived from the ledger, so the ledger entry IS the whole move.
+        const res = await fetch(`${PB}/api/collections/movements/records`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            item: this.id,
+            quantity: this.qty,
+            from_location: this.fromLoc || null,
+            to_location: this.toLoc,
+            moved_by: this.movedBy || 'unspecified'
+          })
+        });
+        if (!res.ok) throw new Error('movement rejected (' + res.status + ')');
+
+        const dest = this.locations.find(l => l.id === this.toLoc);
+        this.flash = '✓ ' + this.qty + ' → ' + (dest ? dest.name : 'destination');
+        this.qty = null;
+        this.toLoc = '';
+        await this.load();   // re-derive the stock plate
+      } catch (err) {
+        this.moveError = 'Move failed: ' + err.message;
+      } finally {
+        this.busy = false;
+      }
+    }
+  };
+}
+</script>
+</body>
+</html>

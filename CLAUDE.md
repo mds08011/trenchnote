@@ -73,10 +73,15 @@ reproduce the entire database from the repo.
   `item` (relation→items), `tag_code` (text, **unique index**), `serial_number`,
   `ownership` (select: `owned` | `rented`), `vendor`, `po_number`,
   `current_location` (relation→locations).
-- **`movements`** — the append-only ledger and **source of truth**.
-  `asset` (relation→assets), `from_location` (relation), `to_location`
-  (relation, required), `moved_by` (text), `note` (text). Timestamp is
-  PocketBase's automatic `created` field.
+- **`movements`** — the append-only ledger and **source of truth**. One
+  collection holds both kinds of moves, distinguished by which fields are set:
+  - *Asset move:* `asset` (relation→assets) set; `item` empty, `quantity` 0.
+  - *Bulk move:* `item` (relation→items) + `quantity` (number > 0) set;
+    `asset` empty.
+  Plus `from_location` (relation; empty = entered from outside the system),
+  `to_location` (relation, required), `moved_by` (text), `note` (text). The
+  either/or shape is enforced server-side by the collection's `createRule`.
+  Timestamp is the `created` autodate field.
 - **`reservations`** — `asset` (relation), `requested_by`, `needed_by` (date),
   `expected_release` (date). Schema now; UI later.
 
@@ -103,8 +108,9 @@ trenchnote/
 ├── .gitignore             # ignore the pocketbase binary and pb_data/
 ├── pb_migrations/         # versioned schema (COMMITTED)
 ├── pb_public/             # the static frontend
-│   ├── index.html         # dashboard: assets by location, recently moved
+│   ├── index.html         # dashboard: assets by location, materials, recently moved
 │   ├── asset.html         # scan landing page: view + move an asset
+│   ├── material.html      # bulk item: stock per location (derived) + move quantities
 │   ├── labels.html        # print QR labels for all assets
 │   └── vendor/            # vendored alpine.min.js, qrcode.min.js
 └── scripts/

@@ -58,6 +58,13 @@ Then:
 4. Scan a label with your phone camera → the asset page opens in the browser →
    tap **Move** when the thing changes sites.
 
+Bulk materials (pipe supports, fittings — items with `tracking_mode=bulk`)
+have no individual tags: open them from the dashboard's **Materials** section
+to log deliveries and moves as quantities. Stock per location is always
+derived from the movement ledger, never stored. Material that gets installed
+doesn't vanish — make a location like "Installed — Northside" and move it
+there, so the ledger stays complete for vendor disputes.
+
 ### Testing from a phone
 
 Your phone can't reach `127.0.0.1` — that's your computer's loopback. Serve on

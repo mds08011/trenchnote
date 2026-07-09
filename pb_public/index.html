@@ -88,6 +88,13 @@
     white-space: nowrap;
   }
 
+  /* ---- Materials --------------------------------------------------- */
+  .mat-row .qty {
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+    font-weight: 700; font-size: 16px; white-space: nowrap;
+  }
+  .mat-row .qty small { color: var(--steel); font-weight: 400; font-size: 12px; }
+
   /* ---- Recently moved --------------------------------------------- */
   .mv {
     padding: 10px 0;
@@ -146,12 +153,29 @@
         </section>
       </template>
 
+      <!-- Bulk materials: no per-unit assets, so each row links to
+           material.html where stock is derived from the ledger -->
+      <template x-if="materials.length">
+        <div>
+          <h2>Materials</h2>
+          <section class="group">
+            <template x-for="mat in materials" :key="mat.id">
+              <a class="asset-row mat-row" :href="'material.html?id=' + mat.id">
+                <span class="name" x-text="mat.name"></span>
+                <span class="qty"><span x-text="mat.total"></span> <small>on hand</small></span>
+              </a>
+            </template>
+          </section>
+        </div>
+      </template>
+
       <h2>Recently moved</h2>
       <template x-for="m in movements" :key="m.id">
         <div class="mv">
           <div class="route">
-            <span class="tag" x-text="m.expand?.asset?.tag_code || '?'"></span>
-            <span x-text="m.expand?.asset?.expand?.item?.name || ''"></span>
+            <!-- Asset moves show the tag code; bulk moves show "120×" -->
+            <span class="tag" x-text="m.expand?.asset?.tag_code || (m.quantity + '×')"></span>
+            <span x-text="m.expand?.asset?.expand?.item?.name || m.expand?.item?.name || ''"></span>
             — <span x-text="m.expand?.from_location?.name || 'outside system'"></span>
             → <strong x-text="m.expand?.to_location?.name || '?'"></strong>
           </div>
@@ -177,6 +201,8 @@ function dashboard() {
     locations: [],
     assets: [],
     movements: [],
+    bulkItems: [],
+    deliveries: [],
 
     // Locations in name order, each with its assets attached; a synthetic
     // "Unassigned" bucket catches assets with no current_location. Groups
@@ -196,6 +222,20 @@ function dashboard() {
       return groups.sort((x, y) => y.assets.length - x.assets.length);
     },
 
+    // Total on hand per bulk item. Nothing ever leaves the system
+    // (to_location is required), so the total in circulation is simply the
+    // sum of quantities that ENTERED from outside — movements with no
+    // from_location. Per-location breakdown lives on material.html.
+    get materials() {
+      const totals = {};
+      for (const d of this.deliveries) {
+        totals[d.item] = (totals[d.item] || 0) + d.quantity;
+      }
+      return this.bulkItems
+        .map(i => ({ id: i.id, name: i.name, total: totals[i.id] || 0 }))
+        .sort((a, b) => b.total - a.total);
+    },
+
     // "3d ago" / "5h ago" / "just now" — cheap and good enough
     ago(dateStr) {
       const mins = Math.floor((Date.now() - new Date(dateStr)) / 60000);
@@ -209,19 +249,25 @@ function dashboard() {
     async load() {
       try {
         // Three reads, fired in parallel to keep slow connections snappy.
-        const [locRes, assetRes, mvRes] = await Promise.all([
+        const [locRes, assetRes, mvRes, itemRes, delRes] = await Promise.all([
           fetch(`${PB}/api/collections/locations/records?sort=name&perPage=200`),
           fetch(`${PB}/api/collections/assets/records?expand=item&sort=tag_code&perPage=500`),
           // Nested expand: "asset.item" resolves the movement's asset AND
-          // that asset's item in one request.
-          fetch(`${PB}/api/collections/movements/records?sort=-created&perPage=15&expand=asset.item,from_location,to_location`),
+          // that asset's item in one request; plain "item" covers bulk moves.
+          fetch(`${PB}/api/collections/movements/records?sort=-created&perPage=15&expand=asset.item,item,from_location,to_location`),
+          // The two extra reads that power the Materials section:
+          fetch(`${PB}/api/collections/items/records?filter=(tracking_mode='bulk')&sort=name&perPage=200`),
+          // deliveries = bulk movements that entered from outside the
+          // system (no from_location) — all we need for totals
+          fetch(`${PB}/api/collections/movements/records?filter=(item!=''%26%26from_location='')&perPage=500`),
         ]);
-        if (!locRes.ok || !assetRes.ok || !mvRes.ok) {
-          throw new Error('API error ' + [locRes, assetRes, mvRes].find(r => !r.ok).status);
-        }
+        const bad = [locRes, assetRes, mvRes, itemRes, delRes].find(r => !r.ok);
+        if (bad) throw new Error('API error ' + bad.status);
         this.locations = (await locRes.json()).items;
         this.assets = (await assetRes.json()).items;
         this.movements = (await mvRes.json()).items;
+        this.bulkItems = (await itemRes.json()).items;
+        this.deliveries = (await delRes.json()).items;
         this.state = 'ready';
       } catch (err) {
         this.state = 'error';
