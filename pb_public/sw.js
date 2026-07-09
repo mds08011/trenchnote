@@ -17,7 +17,7 @@
 // Writes (POST/PATCH) pass straight through — offline queueing happens in
 // tn-sync.js where the user can SEE it, not in service-worker magic.
 
-const VERSION = 'v3';                    // bump on every shell change
+const VERSION = 'v5';                    // bump on every shell change
 const SHELL_CACHE = 'tn-shell-' + VERSION;
 const API_CACHE = 'tn-api-' + VERSION;
 
@@ -28,6 +28,7 @@ const SHELL = [
   'material.html',
   'labels.html',
   'login.html',
+  'scan.html',
   'tn-auth.js',
   'tn-sync.js',
   'manifest.json',
@@ -35,6 +36,11 @@ const SHELL = [
   'icon-512.png',
   'vendor/alpine.min.js',
   'vendor/qrcode.min.js',
+  // vendor/jsQR.min.js is deliberately NOT precached: it's the QR-decode
+  // fallback for browsers without BarcodeDetector (iOS Safari), and
+  // precaching would ship its weight to every browser. scan.html injects
+  // it lazily; the runtime caching below keeps it for offline reuse on
+  // the phones that actually fetched it. (ADR 0009)
 ];
 
 self.addEventListener('install', (event) => {
@@ -78,7 +84,15 @@ self.addEventListener('fetch', (event) => {
 async function shellCacheFirst(req) {
   const cached = await caches.match(req, { ignoreSearch: true });
   if (cached) return cached;
-  return fetch(req);
+  const res = await fetch(req);
+  // Runtime-cache successful static misses — this is how the lazily
+  // loaded jsQR fallback becomes available offline on the (iOS) phones
+  // that needed it, without precaching it for everyone.
+  if (res.ok) {
+    const cache = await caches.open(SHELL_CACHE);
+    cache.put(req, res.clone());
+  }
+  return res;
 }
 
 // ---- API reads: network-first, stamped cache fallback ----------------------

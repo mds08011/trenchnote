@@ -65,6 +65,9 @@ Then:
 5. Scan a label with your phone camera → sign in once on that phone → the
    asset page opens in the browser → tap **Move** when the thing changes
    sites.
+6. Already in the app? **📷 Scan** opens an in-app scanner — and picking
+   your location turns it into an inventory walk that flags anything the
+   ledger has wrong, with a one-tap fix.
 
 Bulk materials (pipe supports, fittings — items with `tracking_mode=bulk`)
 have no individual tags: open them from the dashboard's **Materials** section

@@ -30,6 +30,26 @@ Type your name once — the phone remembers it after that.
 open TrenchNote in your browser, find that code on the dashboard list, and
 tap it. Same page.
 
+**Already in the app?** Tap **📷 Scan** at the top instead of switching to
+your camera — point it at the next tag and it opens straight away. (First
+time, your browser asks to use the camera — allow it.)
+
+## Walking the yard (inventory check)
+
+Doing a walk-through to see what's actually on site? Open **📷 Scan** and
+set **"I'm at:"** to where you're standing. Now the camera stays on, and
+every tag you point at lands on a list:
+
+- **Green ✓** — it's where the log says it should be. Keep walking.
+- **Orange "ledger says…"** — the log thinks it's somewhere else. You're
+  looking at it, so you win: tap **Move here** and the record is fixed on
+  the spot.
+- **Red "not in the system"** — that sticker isn't in TrenchNote. Tell
+  your PM.
+
+Scan the same tag twice and it just blinks — no double entries. Twenty
+tags in five minutes is normal.
+
 ## Reading the equipment page
 
 - The **big box** is where the thing currently is, and how long it's been

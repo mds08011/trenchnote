@@ -30,6 +30,7 @@ trenchnote/
 │   ├── asset.html          # QR landing page: view, move, reserve one asset
 │   ├── material.html       # bulk item: derived stock per location, move quantities
 │   ├── labels.html         # printable QR sheet for all assets
+│   ├── scan.html           # in-app QR scanner + inventory walk mode
 │   ├── login.html          # sign-in; stores the PocketBase token in localStorage
 │   ├── tn-auth.js          # shared auth helper — TN.fetch, TN.requireLogin
 │   ├── tn-sync.js          # offline write queue (IndexedDB), sync badge, stale banner
@@ -163,6 +164,16 @@ Patterns you'll see repeatedly (all commented in the source):
 - **perPage ceilings:** list fetches cap at PocketBase's max of 500. Fine for
   a division-sized deployment; pagination is the known upgrade path if a
   ledger outgrows it.
+- **Mutate list items through the reactive array, never through the raw
+  object you pushed.** Alpine wraps arrays in proxies; writes to the raw
+  reference are invisible and the DOM silently stops updating. Push, then
+  re-find the item (`this.rows.find(...)`) before mutating — scan.html's
+  `addRow` shows the pattern and the comment.
+- **The scanner decodes via `BarcodeDetector` where real** (check
+  `getSupportedFormats()` includes `qr_code`) **and lazily injects
+  `vendor/jsQR.min.js` otherwise** (iOS Safari). Keep the fallback out of
+  the SW precache and out of script tags — the whole point is that
+  Chrome/Android never fetch it (ADR 0009).
 
 ## Auth
 

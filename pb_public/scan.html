@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TrenchNote — Scan</title>
+
+<!--
+  TrenchNote in-app QR scanner (ADR 0009).
+
+  The native camera app is still the PRIMARY path — a tag is just a URL.
+  This page covers where that falls short: scanning the next tag while
+  already in the app, fussy iOS camera apps, and inventory walks.
+
+  Two modes, switched by the "I'm at:" selector:
+
+    "Just scanning"  — first successful decode navigates to the asset page.
+    A location       — WALK MODE: camera stays open, every scanned tag is
+                       appended to a running list with a verdict — is this
+                       thing where the ledger says it is? Mismatches get a
+                       one-tap "Move here" (a normal ledger-first move,
+                       offline-queueable like any other).
+
+  Decoding: native BarcodeDetector where it truly supports QR (Chrome and
+  Android — the field majority). Otherwise vendor/jsQR.min.js is injected
+  RIGHT THEN — it's not in the service worker precache and not referenced
+  by any script tag, so browsers with BarcodeDetector never download it.
+
+  The in-app scanner accepts TrenchNote URLs from ANY origin, so labels
+  printed against an old LAN IP still scan here after a move to a real
+  domain (the native-camera path still needs reprints).
+-->
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="tn-auth.js"></script>
+<script src="tn-sync.js"></script>
+<script defer src="vendor/alpine.min.js"></script>
+
+<style>
+  /* Same field-utility tokens as every other page */
+  :root {
+    --ink:    #14161a;
+    --paper:  #ffffff;
+    --steel:  #5b6470;
+    --line:   #d8dce1;
+    --safety: #ff5a1f;
+    --go:     #1b8a4b;
+    --bad:    #a1160a;
+    --warn:   #8a5a00;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--paper); color: var(--ink);
+    line-height: 1.45;
+    max-width: 480px; margin: 0 auto;
+    padding: 16px 16px 48px;
+  }
+  header {
+    display: flex; justify-content: space-between; align-items: baseline;
+    border-bottom: 3px solid var(--ink);
+    padding-bottom: 10px; margin-bottom: 16px;
+  }
+  .mark { font-weight: 800; letter-spacing: .04em; font-size: 14px; text-transform: uppercase; }
+  header a { color: var(--safety); font-weight: 700; font-size: 14px; text-decoration: none; }
+
+  label.at {
+    display: block; font-size: 12px; font-weight: 700;
+    color: var(--steel); margin-bottom: 4px;
+  }
+  select {
+    width: 100%; min-height: 56px;
+    font: inherit; font-size: 17px;
+    padding: 12px; margin-bottom: 12px;
+    border: 2px solid var(--ink); border-radius: 0;
+    background: var(--paper); color: var(--ink);
+  }
+
+  .viewfinder {
+    position: relative;
+    border: 3px solid var(--ink);
+    background: #000;
+    aspect-ratio: 4 / 3;
+    overflow: hidden;
+  }
+  .viewfinder video { width: 100%; height: 100%; object-fit: cover; }
+  .viewfinder .hint {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    padding: 8px 12px;
+    font-size: 14px; font-weight: 700; text-align: center;
+    background: rgba(20, 22, 26, .85); color: #fff;
+  }
+
+  .panel {
+    border: 2px solid var(--ink);
+    padding: 16px; margin-top: 4px;
+    font-size: 15px;
+  }
+  .panel strong { display: block; margin-bottom: 6px; }
+
+  /* ---- Walk list ---------------------------------------------------- */
+  .counter {
+    font-size: 12px; font-weight: 700; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--steel);
+    margin: 14px 0 8px;
+  }
+  .wrow {
+    display: flex; align-items: center; gap: 10px;
+    min-height: 56px; padding: 8px 10px;
+    border: 2px solid var(--line); border-left-width: 6px;
+    margin-bottom: 8px;
+  }
+  .wrow.ok        { border-color: var(--go); }
+  .wrow.mismatch  { border-color: var(--warn); }
+  .wrow.unknown   { border-color: var(--bad); }
+  .wrow.offline   { border-color: var(--steel); }
+  .wrow.bump      { background: #fff4e5; }
+  .wrow .tag {
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+    font-weight: 700; font-size: 15px;
+    border: 2px solid var(--ink); padding: 0 6px;
+    text-decoration: none; color: var(--ink); white-space: nowrap;
+  }
+  .wrow .winfo { flex: 1; min-width: 0; }
+  .wrow .wname { font-size: 15px; }
+  .wrow .wloc  { font-size: 13px; color: var(--steel); }
+  .wrow.ok .wloc       { color: var(--go); font-weight: 700; }
+  .wrow.mismatch .wloc { color: var(--warn); font-weight: 700; }
+  .wrow.unknown .wloc  { color: var(--bad); font-weight: 700; }
+  .wrow button {
+    font: inherit; font-size: 13px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: .04em;
+    min-height: 44px; padding: 8px 12px;
+    background: var(--safety); color: #fff;
+    border: none; cursor: pointer; white-space: nowrap;
+  }
+  .wrow button:disabled { background: var(--line); color: var(--steel); }
+</style>
+</head>
+<body>
+
+<div x-data="scanPage()" x-init="init()">
+
+  <header>
+    <span class="mark">TrenchNote</span>
+    <a href="./">Dashboard</a>
+  </header>
+
+  <label class="at" for="atLoc">I'm at:</label>
+  <select id="atLoc" x-model="atLoc">
+    <option value="">Just scanning (open the tag I point at)</option>
+    <template x-for="loc in locations" :key="loc.id">
+      <option :value="loc.id" x-text="loc.name"></option>
+    </template>
+  </select>
+
+  <!-- Camera denied / unavailable: plain guidance, no console spew -->
+  <template x-if="state === 'denied'">
+    <div class="panel">
+      <strong>TrenchNote can't see the camera.</strong>
+      Allow camera access for this site in your browser settings and
+      reload — or just use your phone's camera app instead: every sticker
+      is a link.
+    </div>
+  </template>
+  <template x-if="state === 'nocamera'">
+    <div class="panel">
+      <strong>No camera available here.</strong>
+      Use your phone's camera app — every sticker is a link — or type the
+      tag code into the dashboard list.
+    </div>
+  </template>
+
+  <div class="viewfinder" x-show="state === 'starting' || state === 'scanning'">
+    <video x-ref="video" playsinline muted></video>
+    <div class="hint" x-show="hint" x-text="hint"></div>
+  </div>
+
+  <!-- Walk mode: the running tally -->
+  <template x-if="atLoc && rows.length">
+    <div>
+      <p class="counter" x-text="counter"></p>
+      <template x-for="r in rows" :key="r.tag">
+        <div class="wrow" :class="[r.verdict, r.bump ? 'bump' : '']">
+          <a class="tag" :href="'asset.html?code=' + encodeURIComponent(r.tag)" x-text="r.tag"></a>
+          <div class="winfo">
+            <div class="wname" x-text="r.name"></div>
+            <div class="wloc" x-text="verdictText(r)"></div>
+          </div>
+          <button x-show="r.verdict === 'mismatch'" :disabled="r.busy"
+                  @click="moveHere(r)" x-text="r.busy ? '…' : 'Move here'"></button>
+        </div>
+      </template>
+    </div>
+  </template>
+  <template x-if="atLoc && !rows.length && state === 'scanning'">
+    <p class="counter">Walk mode — point at tags; each one lands here with a verdict.</p>
+  </template>
+
+</div>
+
+<script>
+TN.requireLogin();
+
+function scanPage() {
+  const PB = window.location.origin;
+
+  return {
+    state: 'starting',   // starting | scanning | denied | nocamera
+    atLoc: '',           // '' = single-scan mode; a location id = walk mode
+    locations: [],
+    rows: [],            // newest first: {tag, name, locName, locId, assetId, verdict, busy, bump}
+    hint: '',
+    _stream: null,
+    _raf: null,
+    _detect: null,               // (video) => decoded string | null
+    _last: { text: '', at: 0 },  // debounce: same code within 2.5s = one scan
+
+    get counter() {
+      const m = this.rows.filter(r => r.verdict === 'mismatch').length;
+      return this.rows.length + ' scanned · ' +
+        (m ? m + (m === 1 ? ' mismatch' : ' mismatches') : 'all where they should be');
+    },
+
+    verdictText(r) {
+      if (r.verdict === 'pending')  return 'checking…';
+      if (r.verdict === 'ok')       return '✓ here';
+      if (r.verdict === 'mismatch') return 'ledger says ' + (r.locName || 'Unassigned');
+      if (r.verdict === 'unknown')  return 'not in the system — tell your PM';
+      return 'no data — offline? tap the tag to retry later';
+    },
+
+    async init() {
+      // Camera must be released when the user leaves (navigating to an
+      // asset page, closing the tab) — a held camera drains batteries.
+      window.addEventListener('pagehide', () => this.stop());
+
+      // Locations power both the "I'm at" selector and the verdicts.
+      try {
+        const res = await TN.fetch(`${PB}/api/collections/locations/records?sort=name&perPage=200`);
+        this.locations = (await res.json()).items;
+      } catch (err) { /* offline: selector is empty, single-scan still works */ }
+
+      await this.startCamera();
+    },
+
+    async startCamera() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        this.state = 'nocamera';
+        return;
+      }
+      try {
+        // facingMode environment = the back camera, where tags are
+        this._stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' }
+        });
+      } catch (err) {
+        this.state = 'denied';   // plain guidance in the panel above
+        return;
+      }
+      const video = this.$refs.video;
+      video.srcObject = this._stream;
+      await video.play();
+      await this.initDetector();
+      this.state = 'scanning';
+      this.loop();
+    },
+
+    // Pick the decoder. Native BarcodeDetector is hardware-accelerated
+    // and costs zero bytes; jsQR is fetched ONLY here, only when needed
+    // (see vendor/README.md) — Chrome/Android never download it.
+    async initDetector() {
+      if ('BarcodeDetector' in window) {
+        try {
+          const formats = await BarcodeDetector.getSupportedFormats();
+          if (formats.includes('qr_code')) {
+            const det = new BarcodeDetector({ formats: ['qr_code'] });
+            this._detect = async (source) => {
+              const hits = await det.detect(source);
+              return hits.length ? hits[0].rawValue : null;
+            };
+            return;
+          }
+        } catch (err) { /* fall through to jsQR */ }
+      }
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'vendor/jsQR.min.js';
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+      // jsQR reads raw pixels, so frames go through a scratch canvas
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      this._detect = async (source) => {
+        const w = source.videoWidth || source.width, h = source.videoHeight || source.height;
+        if (!w) return null;
+        canvas.width = w; canvas.height = h;
+        ctx.drawImage(source, 0, 0);
+        const img = ctx.getImageData(0, 0, w, h);
+        const hit = jsQR(img.data, img.width, img.height);
+        return hit ? hit.data : null;
+      };
+    },
+
+    // ~6 decodes per second is plenty for a handheld tag and keeps old
+    // phones cool; requestAnimationFrame stops burning cycles when the
+    // tab is backgrounded.
+    loop() {
+      let lastTick = 0;
+      const tick = async (t) => {
+        if (this.state !== 'scanning') return;
+        if (t - lastTick > 160) {
+          lastTick = t;
+          try {
+            const text = await this._detect(this.$refs.video);
+            if (text) this.onDecode(text);
+          } catch (err) { /* a bad frame is not an event */ }
+        }
+        this._raf = requestAnimationFrame(tick);
+      };
+      this._raf = requestAnimationFrame(tick);
+    },
+
+    // A tag's QR encodes {baseUrl}/asset.html?code=XXXX. Accept that from
+    // ANY origin (old LAN-IP labels keep working in-app), or a bare short
+    // code. Anything else is somebody's WiFi QR — say so politely.
+    parseTag(text) {
+      try {
+        const u = new URL(text);
+        const c = u.searchParams.get('code');
+        if (c) return c;
+        return null;
+      } catch (err) { /* not a URL — maybe a bare code */ }
+      if (/^[A-Za-z0-9-]{2,8}$/.test(text)) return text;
+      return null;
+    },
+
+    onDecode(text) {
+      const now = Date.now();
+      if (text === this._last.text && now - this._last.at < 2500) return;
+      this._last = { text, at: now };
+
+      const tag = this.parseTag(text);
+      if (!tag) {
+        this.flashHint("That's not a TrenchNote tag");
+        return;
+      }
+      if (!this.atLoc) {
+        // Single-scan: this page's job is done
+        this.stop();
+        location.href = 'asset.html?code=' + encodeURIComponent(tag);
+        return;
+      }
+      this.addRow(tag);
+    },
+
+    flashHint(msg) {
+      this.hint = msg;
+      setTimeout(() => { if (this.hint === msg) this.hint = ''; }, 2000);
+    },
+
+    async addRow(tag) {
+      const existing = this.rows.find(r => r.tag === tag);
+      if (existing) {
+        // Re-scan of a tag already on the list: bump it, don't duplicate
+        existing.bump = true;
+        setTimeout(() => { existing.bump = false; }, 700);
+        return;
+      }
+      this.rows.unshift({ tag, name: '…', locName: '', locId: '', assetId: '',
+                          verdict: 'pending', busy: false, bump: false });
+      // IMPORTANT: mutate the row via the reactive array, not the raw
+      // object we just pushed — Alpine can't see writes to the raw
+      // reference, and the list would silently stop updating.
+      const row = this.rows.find((r) => r.tag === tag);
+      try {
+        const filter = encodeURIComponent(`tag_code='${tag.replace(/'/g, "\\'")}'`);
+        const res = await TN.fetch(
+          `${PB}/api/collections/assets/records?filter=(${filter})&expand=item,current_location&perPage=1`
+        );
+        if (!res.ok) throw new TypeError('offline');
+        const items = (await res.json()).items;
+        if (!items.length) {
+          row.verdict = 'unknown';
+          row.name = 'Unknown tag';
+          return;
+        }
+        const a = items[0];
+        row.assetId = a.id;
+        row.locId = a.current_location || '';
+        row.name = a.expand?.item?.name || 'Unknown item';
+        row.locName = a.expand?.current_location?.name || '';
+        row.verdict = (a.current_location === this.atLoc) ? 'ok' : 'mismatch';
+      } catch (err) {
+        row.verdict = 'offline';
+        row.name = tag;
+      }
+    },
+
+    // The walker is standing next to the thing at the location they
+    // declared — the highest-confidence correction TrenchNote ever gets.
+    // A normal move: ledger first, pre-generated id, offline-queueable.
+    async moveHere(row) {
+      row.busy = true;
+      const movement = {
+        id: TNSync.genId(),
+        asset: row.assetId,
+        from_location: row.locId || null,
+        to_location: this.atLoc,
+        moved_by: localStorage.getItem('tn_name') || 'unspecified'
+      };
+      try {
+        const res = await TN.fetch(`${PB}/api/collections/movements/records`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(movement)
+        });
+        if (!res.ok) throw new Error('rejected (' + res.status + ')');
+        await TN.fetch(`${PB}/api/collections/assets/records/${row.assetId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ current_location: this.atLoc })
+        });
+        row.verdict = 'ok';
+      } catch (err) {
+        if (TNSync.isNetworkError(err)) {
+          await TNSync.enqueue(movement,
+            { assetId: row.assetId, toLocation: this.atLoc },
+            row.tag + ' → ' + (this.locations.find(l => l.id === this.atLoc)?.name || '?'));
+          row.verdict = 'ok';   // the badge carries the "not synced yet" truth
+        } else {
+          this.flashHint('Move failed: ' + err.message);
+        }
+      } finally {
+        row.busy = false;
+      }
+    },
+
+    stop() {
+      if (this._raf) cancelAnimationFrame(this._raf);
+      if (this._stream) this._stream.getTracks().forEach((t) => t.stop());
+      this._stream = null;
+    }
+  };
+}
+</script>
+</body>
+</html>

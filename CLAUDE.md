@@ -133,6 +133,7 @@ trenchnote/
 │   ├── asset.html         # scan landing page: view + move an asset
 │   ├── material.html      # bulk item: stock per location (derived) + move quantities
 │   ├── labels.html        # print QR labels for all assets
+│   ├── scan.html          # in-app QR scanner; walk mode audits a location
 │   ├── login.html         # sign in; token to localStorage
 │   ├── tn-auth.js         # shared auth helper (TN.fetch / TN.requireLogin)
 │   ├── tn-sync.js         # offline write queue + sync badge + stale banner
