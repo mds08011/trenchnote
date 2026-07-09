@@ -3,6 +3,8 @@
 **A minimalist, self-hostable ledger for tracking equipment and materials
 across construction job sites.**
 
+Project page: [mds08011.github.io/trenchnote](https://mds08011.github.io/trenchnote/)
+
 Tape a QR code to a scissor lift. Anyone who scans it with their phone camera
 sees what it is, where it's supposed to be, and how long it's been there — and
 can log a move in two taps. No app to install, no account for field crews, no
