@@ -190,7 +190,10 @@
 
   <header>
     <span class="mark">TrenchNote</span>
-    <span class="tag" x-text="code || '—'"></span>
+    <span style="display: flex; align-items: center; gap: 12px;">
+      <a href="https://github.com/mds08011/trenchnote" target="_blank" style="color: var(--safety); font-weight: 700; font-size: 14px; text-decoration: none;">GitHub</a>
+      <span class="tag" x-text="code || '—'"></span>
+    </span>
   </header>
 
   <template x-if="state === 'loading'">
