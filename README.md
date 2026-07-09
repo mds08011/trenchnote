@@ -14,6 +14,8 @@ TrenchNote answers three questions and refuses to be anything else:
 2. **Where is it?**
 3. **Who moved it?**
 
+![The TrenchNote dashboard: assets grouped by location, material totals, upcoming reservations, and the recent-movements ledger](docs/img/dashboard.png)
+
 It is not an ERP, not a Procore replacement, and not accounting software. It's
 a field-logistics ledger built by a project engineer at a water/wastewater
 general contractor, for the real problems of shared-equipment divisions:
