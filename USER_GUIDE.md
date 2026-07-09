@@ -71,6 +71,10 @@ The page shows how many the log says are at the "From" spot. If that number
 looks wrong compared to what's actually on the ground, tell your PM — the
 fix is logging a correcting move, and it takes ten seconds.
 
+If you log more than the app thinks is there, it asks you to confirm once.
+If the material really is in your hands, tap OK — you're right and the log
+is missing a delivery. The count goes negative until someone logs it.
+
 If a spot ever shows a **red negative number**, that's the app telling you
 the log and the ground disagree — more left that spot on paper than ever
 arrived. Usually it's a delivery nobody logged. Log it now and the number

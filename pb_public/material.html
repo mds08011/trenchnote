@@ -304,6 +304,20 @@ function materialPage() {
     },
 
     async move() {
+      // Soft guard, not a wall: taking more from a spot than the ledger
+      // says is there is *sometimes* right (the ledger is missing a
+      // delivery) and sometimes a fat-fingered quantity. Confirm once,
+      // then trust the crew — they're standing next to the material.
+      if (this.fromLoc && this.qty > this.stockAt(this.fromLoc)) {
+        const src = this.locations.find(l => l.id === this.fromLoc);
+        const ok = confirm(
+          'The ledger says ' + (src ? src.name : 'that spot') + ' only has ' +
+          this.stockAt(this.fromLoc) + ', but you\'re logging ' + this.qty + '.\n\n' +
+          'Log it anyway? The count there will go negative until the ' +
+          'missing delivery gets logged.'
+        );
+        if (!ok) return;
+      }
       this.busy = true;
       this.flash = '';
       this.moveError = '';
