@@ -24,6 +24,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <script src="tn-auth.js"></script>
 <script src="tn-sync.js"></script>
+<script src="tn-inspect.js"></script>
 <script defer src="vendor/alpine.min.js"></script>
 
 <style>
@@ -152,6 +153,50 @@
     padding: 0 4px; text-transform: uppercase;
   }
   .rdg a { color: var(--safety); font-size: 13px; }
+
+  /* ---- Inspections (ADR 0014) --------------------------------------
+     The compliance badge. RED outranks everything on this page — gear
+     you must not use has no business leading with a move button — so
+     the red banner renders ABOVE the location plate. All three colors
+     are the same tappable banner opening the same panel. */
+  .insp-banner {
+    margin-top: 22px; border: 3px solid; padding: 14px 16px;
+    cursor: pointer;
+  }
+  .insp-banner .headline {
+    font-size: 22px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: .01em;
+  }
+  .insp-banner .why { font-weight: 600; font-size: 14px; margin-top: 4px; }
+  .insp-banner .tap {
+    font-size: 12px; font-weight: 700; margin-top: 8px;
+    text-decoration: underline;
+  }
+  .insp-banner.red    { border-color: #a1160a; background: #fdecea; color: #a1160a; }
+  .insp-banner.yellow { border-color: #8a5a00; background: #fff4e5; color: #8a5a00; margin-top: 14px; }
+  .insp-banner.yellow .headline { font-size: 16px; }
+  .insp-banner.green  { border-color: var(--go); color: var(--go); margin-top: 14px; padding: 10px 16px; }
+  .insp-banner.green .headline { font-size: 14px; }
+  .insp { margin-top: 26px; }
+  .insp h2 {
+    font-size: 12px; font-weight: 700; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--steel); margin: 14px 0 10px;
+  }
+  .insp-row {
+    padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px;
+  }
+  .insp-row .who { color: var(--steel); font-size: 13px; margin-top: 1px; }
+  .chip {
+    font-size: 10px; font-weight: 700; letter-spacing: .08em;
+    text-transform: uppercase; border: 1.5px solid currentColor;
+    padding: 0 4px; margin-left: 6px; white-space: nowrap;
+  }
+  .chip.red   { color: #a1160a; }
+  .chip.amber { color: #8a5a00; }
+  .chip.ok    { color: var(--go); }
+  .res-pass { color: var(--go); }
+  .res-fail, .res-removed_from_service { color: #a1160a; }
+
   button.go {
     width: 100%; min-height: 60px;
     font: inherit; font-size: 18px; font-weight: 800;
@@ -264,6 +309,21 @@
         <img class="photo" :src="photoUrl" alt="Asset photo">
       </template>
 
+      <!-- Compliance badge, RED tier (ADR 0014): renders ABOVE the
+           location plate — "do not use" outranks "where is it". The
+           verdict is DERIVED fresh on every load by tn-inspect.js from
+           the requirements + inspections ledger; nothing is stored. -->
+      <template x-if="insp.badge === 'red'">
+        <div class="insp-banner red" role="button"
+             @click="showInsp = !showInsp">
+          <div class="headline">🚫 Do not use</div>
+          <template x-for="reason in insp.reasons">
+            <div class="why" x-text="reason"></div>
+          </template>
+          <div class="tap" x-text="showInsp ? 'Hide inspections ▲' : 'Inspections & history ▼'"></div>
+        </div>
+      </template>
+
       <!-- The location plate -->
       <div class="plate">
         <div class="eyebrow">Current location</div>
@@ -277,6 +337,143 @@
           Charging to job <strong x-text="asset.expand?.current_location?.job_code"></strong>
         </div>
       </div>
+
+      <!-- Compliance badge, YELLOW/GREEN tiers, plus the quiet link for
+           assets with no requirements (most of them). Same panel. -->
+      <template x-if="insp.badge === 'yellow' || insp.badge === 'green'">
+        <div class="insp-banner" :class="insp.badge" role="button"
+             @click="showInsp = !showInsp">
+          <div class="headline"
+               x-text="insp.badge === 'yellow' ? '⚠ Inspection due soon' : '✓ Inspections current'"></div>
+          <template x-for="row in insp.rows.filter(r => r.state === 'due_soon')">
+            <div class="why" x-text="row.req.name + ' — ' + row.label"></div>
+          </template>
+          <div class="tap" x-text="showInsp ? 'Hide inspections ▲' : 'Inspections & history ▼'"></div>
+        </div>
+      </template>
+      <template x-if="insp.badge === 'none'">
+        <div style="margin-top:14px">
+          <button class="resv-toggle" @click="showInsp = !showInsp"
+                  x-text="showInsp ? 'Hide inspections ▲' : '🛡 Inspections & certs →'"></button>
+        </div>
+      </template>
+
+      <!-- Inspections panel (ADR 0014): per-requirement status, the log
+           form (offline-safe like moves), the append-only history, and
+           requirement management. -->
+      <template x-if="showInsp">
+        <div class="insp">
+          <h2 x-show="insp.rows.length" style="margin-top:0">Requirements</h2>
+          <template x-for="row in insp.rows" :key="row.req.id">
+            <div class="insp-row">
+              <div>
+                <strong x-text="row.req.name"></strong>
+                <span class="chip" :class="chipClass(row.state)" x-text="row.label"></span>
+              </div>
+              <div class="who">
+                every <span x-text="row.req.interval_days"></span> days<span
+                  x-show="row.req.reference" x-text="' · ' + row.req.reference"></span><span
+                  x-show="row.lastPass" x-text="' · last passed ' + fmtIDay(row.lastPass.inspected_at)"></span>
+              </div>
+            </div>
+          </template>
+          <p class="meta" x-show="!requirements.length">
+            No inspection requirements on this asset. Log a one-off check
+            below, or add a requirement under “Manage requirements”.
+          </p>
+
+          <h2>Log an inspection</h2>
+          <select x-model="inspReq" aria-label="Which requirement">
+            <option value="">Ad-hoc — no scheduled requirement</option>
+            <template x-for="r in requirements" :key="r.id">
+              <option :value="r.id" x-text="r.name"></option>
+            </template>
+          </select>
+          <select x-model="inspResult" aria-label="Result">
+            <option value="" disabled selected>Result…</option>
+            <option value="pass">✓ Pass</option>
+            <option value="fail">✗ Fail</option>
+            <option value="removed_from_service">🚫 Removed from service</option>
+          </select>
+          <input type="text" x-model="movedBy" placeholder="Your name">
+          <!-- Note + photo share a row, same glove-sized pattern as the
+               meter capture. The photo is optional but nagged for on
+               fail/removed — see logInspection(). -->
+          <div class="meter-row">
+            <input type="text" x-model="inspNote"
+                   placeholder="Note — what you saw (optional)">
+            <button type="button" class="cam" :class="{ has: inspPhoto }"
+                    @click="$refs.inspPhotoInput.click()"
+                    :aria-label="inspPhoto ? 'Photo attached' : 'Photo of the condition'"
+                    x-text="inspPhoto ? '📷✓' : '📷'"></button>
+            <input type="file" accept="image/*" capture="environment" hidden
+                   x-ref="inspPhotoInput"
+                   @change="inspPhoto = $event.target.files[0] || null">
+          </div>
+          <button class="go secondary" :disabled="!inspResult || busy"
+                  @click="logInspection()"
+                  x-text="busy ? 'Saving…' : 'Log inspection'"></button>
+          <div class="flash" x-show="inspFlash" x-text="inspFlash"></div>
+          <div class="error" x-show="inspError" x-text="inspError"></div>
+
+          <template x-if="inspections.length">
+            <div>
+              <h2>Inspection history</h2>
+              <template x-for="i in inspections" :key="i.id">
+                <div class="rdg">
+                  <span class="val" :class="'res-' + i.result" x-text="resultLabel(i.result)"></span>
+                  <span x-text="reqLabel(i)"></span>
+                  <span class="who"
+                        x-text="fmtIDay(i.inspected_at) + (i.inspected_by && i.inspected_by !== 'unspecified' ? ' · ' + i.inspected_by : '')"></span>
+                  <span class="who" x-show="i.note" x-text="i.note"></span>
+                  <a x-show="i.photo" :href="inspPhotoUrl(i)" target="_blank">photo</a>
+                </div>
+              </template>
+            </div>
+          </template>
+
+          <!-- Manage requirements: catalog data, manager-facing. Common
+               templates live in docs/inspection-seeds.md — intervals must
+               come from YOUR safety program, not from examples. -->
+          <div style="margin-top:14px">
+            <template x-if="!showReqForm">
+              <button class="resv-toggle" @click="showReqForm = true">⚙ Manage requirements →</button>
+            </template>
+            <template x-if="showReqForm">
+              <div>
+                <h2 x-text="reqEditing ? 'Edit requirement' : 'Add a requirement'"></h2>
+                <template x-for="r in requirements" :key="r.id">
+                  <div class="insp-row">
+                    <strong x-text="r.name"></strong> —
+                    every <span x-text="r.interval_days"></span> days
+                    <button class="resv-cancel" style="display:inline; margin:0 0 0 8px"
+                            @click="editReq(r)">edit</button>
+                  </div>
+                </template>
+                <div style="margin-top:10px">
+                  <input type="text" x-model="reqName"
+                         placeholder="Name — e.g. Monthly visual">
+                  <input type="number" inputmode="numeric" min="1" step="1"
+                         x-model="reqInterval"
+                         placeholder="Interval in days — e.g. 30"
+                         aria-label="Interval in days">
+                  <input type="text" x-model="reqRef"
+                         placeholder="Reference — reg / manual / SOP (optional)">
+                  <button class="go secondary"
+                          :disabled="!reqName || !(Number(reqInterval) >= 1) || busy"
+                          @click="saveRequirement()"
+                          x-text="busy ? 'Saving…' : (reqEditing ? 'Save changes' : 'Add requirement')"></button>
+                  <button class="resv-cancel" x-show="reqEditing"
+                          @click="reqEditing = null; reqName = ''; reqInterval = ''; reqRef = ''">
+                    Cancel edit</button>
+                  <div class="flash" x-show="reqFlash" x-text="reqFlash"></div>
+                  <div class="error" x-show="reqError" x-text="reqError"></div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </template>
 
       <!-- Open reservations: the "who has it next" answer. Shown before
            the move button so a crew grabbing this thing sees the claim
@@ -468,6 +665,24 @@ function assetPage() {
     soloPhoto: null,
     soloFlash: '',
     soloNote: '',
+    // Inspections (ADR 0014). The badge itself is the `insp` getter —
+    // derived, never held in state.
+    requirements: [],
+    inspections: [],
+    showInsp: false,
+    inspReq: '',        // requirement id, '' = ad-hoc
+    inspResult: '',
+    inspNote: '',
+    inspPhoto: null,
+    inspFlash: '',
+    inspError: '',
+    showReqForm: false,
+    reqEditing: null,   // requirement id being edited, null = adding
+    reqName: '',
+    reqInterval: '',
+    reqRef: '',
+    reqFlash: '',
+    reqError: '',
     showReserve: false,
     showFulfill: false,
     resvBy: localStorage.getItem('tn_name') || '',
@@ -604,6 +819,21 @@ function assetPage() {
           );
           this.readings = (await rdRes.json()).items;
         }
+
+        // 6. Inspections (ADR 0014): the asset's requirements and its
+        //    inspection ledger, fetched together — both are needed for
+        //    the derived badge (an ad-hoc removed-from-service blocks
+        //    use even on an asset with zero requirements).
+        const iqFilter = encodeURIComponent(`asset='${this.asset.id}'`);
+        const [reqRes, inspRes] = await Promise.all([
+          TN.fetch(`${PB}/api/collections/inspection_requirements/records?filter=(${iqFilter})&sort=name&perPage=100`),
+          // Newest-first by the day eyes were on the thing; `created`
+          // breaks same-day ties (the fail, then the re-check).
+          TN.fetch(`${PB}/api/collections/inspections/records?filter=(${iqFilter})&sort=-inspected_at,-created&perPage=100`),
+        ]);
+        if (!reqRes.ok || !inspRes.ok) throw new Error('API error ' + (reqRes.ok ? inspRes.status : reqRes.status));
+        this.requirements = (await reqRes.json()).items;
+        this.inspections = (await inspRes.json()).items;
 
         this.state = 'ready';
       } catch (err) {
@@ -773,6 +1003,161 @@ function assetPage() {
         if (!r.queued) await this.load();   // show it in the history above
       }
       this.busy = false;
+    },
+
+    // ---- Inspections (ADR 0014) -----------------------------------
+
+    // The whole compliance verdict, recomputed from the two fetched
+    // lists on every render. tn-inspect.js is the single implementation
+    // this page and the dashboard both trust — see the file header for
+    // the RED/YELLOW/GREEN rules.
+    get insp() {
+      return TNInspect.assess(this.requirements, this.inspections);
+    },
+
+    chipClass(state) {
+      return { failed: 'red', never: 'red', overdue: 'red',
+               due_soon: 'amber', ok: 'ok' }[state] || '';
+    },
+
+    fmtIDay(d) { return TNInspect.fmtDay(d); },
+
+    resultLabel(res) {
+      return res === 'pass' ? '✓ PASS'
+           : res === 'fail' ? '✗ FAIL' : '🚫 REMOVED';
+    },
+
+    // Requirement name for a history row. Requirements can be renamed
+    // or (admin-only) deleted after the fact — the ledger row survives
+    // either way, so fall back gracefully.
+    reqLabel(i) {
+      if (!i.requirement) return 'ad-hoc';
+      const r = this.requirements.find((x) => x.id === i.requirement);
+      return r ? r.name : '(removed requirement)';
+    },
+
+    inspPhotoUrl(i) {
+      // PocketBase file URL pattern: /api/files/{collection}/{recordId}/{filename}
+      return `${PB}/api/files/inspections/${i.id}/${i.photo}`;
+    },
+
+    async logInspection() {
+      if (!this.inspResult) return;
+      // The loud photo nag: a fail/removed without a photo is legal —
+      // a missing camera must never stop someone pulling unsafe gear
+      // from service — but it costs one confirm, because the photo of
+      // the defect is the record that ends arguments later.
+      if (this.inspResult !== 'pass' && !this.inspPhoto) {
+        const what = this.inspResult === 'fail' ? 'a FAIL' : 'REMOVED FROM SERVICE';
+        if (!confirm('Logging ' + what + ' without a photo.\n\n' +
+                     'A photo of the problem is the evidence that settles it later.\n\n' +
+                     'OK = log without a photo. Cancel = go back and add one.')) return;
+      }
+      this.busy = true;
+      this.inspFlash = '';
+      this.inspError = '';
+      if (this.movedBy) localStorage.setItem('tn_name', this.movedBy);
+
+      // inspected_at is CLIENT-SET, date-only at UTC midnight (the
+      // reservations convention): the due-date math keys on the day the
+      // eyes were on the thing, and that day must survive an offline
+      // queue — a Friday inspection syncing Monday still reads Friday.
+      // Pre-generated id, same as movements: offline replay is idempotent.
+      const body = {
+        id: TNSync.genId(),
+        asset: this.asset.id,
+        requirement: this.inspReq || '',
+        result: this.inspResult,
+        inspected_by: this.movedBy || 'unspecified',
+        inspected_at: new Date().toISOString().slice(0, 10) + ' 00:00:00',
+        note: this.inspNote || '',
+      };
+      const label = this.code + ' inspection: ' + this.inspResult;
+      try {
+        // Multipart like readings — the photo rides along and PocketBase
+        // casts the string form values to the schema types.
+        const fd = new FormData();
+        for (const k in body) fd.append(k, body[k]);
+        if (this.inspPhoto) fd.append('photo', this.inspPhoto, 'inspection.jpg');
+        const res = await TN.fetch(`${PB}/api/collections/inspections/records`, {
+          method: 'POST',
+          body: fd,
+        });
+        if (!res.ok) throw new Error('inspection rejected (' + res.status + ')');
+        this.inspFlash = '✓ Inspection logged';
+        this.clearInspForm();
+        await this.load();
+        this.showInsp = true;   // load() doesn't touch it, but keep the panel open explicitly
+      } catch (err) {
+        if (TNSync.isNetworkError(err)) {
+          await TNSync.enqueueInspection(body, this.inspPhoto, label);
+          // Show this phone's verdict now: the badge must flip red the
+          // moment a fail is logged, signal or not. The server copy
+          // lands at sync under the same id.
+          this.inspections.unshift(
+            Object.assign({ created: new Date().toISOString(), photo: '' }, body));
+          this.inspFlash = '✓ Saved on this phone — will sync when signal returns';
+          this.clearInspForm();
+        } else {
+          this.inspError = 'Inspection did not save: ' + err.message;
+        }
+      } finally {
+        this.busy = false;
+      }
+    },
+
+    clearInspForm() {
+      this.inspReq = '';
+      this.inspResult = '';
+      this.inspNote = '';
+      this.inspPhoto = null;
+    },
+
+    // Requirements are catalog data (manager-edited), not a ledger:
+    // plain create/update, deliberately NOT offline-queued — changing
+    // the safety program is office work done with connectivity, not a
+    // dirt-lot write that must never be lost.
+    async saveRequirement() {
+      if (!this.reqName || !(Number(this.reqInterval) >= 1)) return;
+      this.busy = true;
+      this.reqFlash = '';
+      this.reqError = '';
+      const body = {
+        asset: this.asset.id,
+        name: this.reqName,
+        interval_days: Math.round(Number(this.reqInterval)),
+        reference: this.reqRef || '',
+      };
+      try {
+        const res = await TN.fetch(
+          this.reqEditing
+            ? `${PB}/api/collections/inspection_requirements/records/${this.reqEditing}`
+            : `${PB}/api/collections/inspection_requirements/records`,
+          {
+            method: this.reqEditing ? 'PATCH' : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+        if (!res.ok) throw new Error('rejected (' + res.status + ')');
+        this.reqFlash = this.reqEditing ? '✓ Requirement updated' : '✓ Requirement added';
+        this.reqEditing = null;
+        this.reqName = '';
+        this.reqInterval = '';
+        this.reqRef = '';
+        await this.load();
+        this.showInsp = true;
+      } catch (err) {
+        this.reqError = 'Could not save the requirement: ' + err.message;
+      } finally {
+        this.busy = false;
+      }
+    },
+
+    editReq(r) {
+      this.reqEditing = r.id;
+      this.reqName = r.name;
+      this.reqInterval = r.interval_days;
+      this.reqRef = r.reference || '';
     },
 
     async reserve() {

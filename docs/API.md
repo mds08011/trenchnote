@@ -13,7 +13,7 @@ origin that serves the pages (e.g. `http://192.168.1.50:8090`).
 
 ## Contract collections
 
-These six collections — their fields, semantics, and the operations marked
+These eight collections — their fields, semantics, and the operations marked
 allowed — are stable. A breaking change to any of them requires a new ADR
 and a version bump of this contract, announced in the release notes.
 
@@ -25,6 +25,8 @@ and a version bump of this contract, announced in the release notes.
 | `movements` | ✔ contract | ✔ (see shape rule) | **never** | **never** |
 | `reservations` | ✔ contract | ✔ (open only) | ✔ (lifecycle) | admin-only |
 | `readings` | ✔ contract | ✔ | **never** | **never** |
+| `inspection_requirements` | ✔ contract | ✔ | ✔ | admin-only |
+| `inspections` | ✔ contract | ✔ (see asset-match rule) | **never** | **never** |
 
 Field-level shapes are defined by the migrations in `pb_migrations/` and
 explained in the [developer guide](DEVELOPER_GUIDE.md#data-model).
@@ -89,6 +91,27 @@ Highlights that are load-bearing for API clients:
   whether the UI offers a reading at scan time; `assets.assigned_to` is
   free-text custodianship. Both optional, both plain facts with no
   side effects.
+- **`inspections` is an append-only ledger** (ADR 0014), same rules as
+  movements and readings: no updates, no deletes, corrections are new
+  records. An inspection is `asset` + `result` (`pass` | `fail` |
+  `removed_from_service`) + **client-set `inspected_at`** (date-only at
+  UTC midnight — unlike the other ledgers, the compliance-relevant date
+  is supplied by the client so offline capture and back-entered paper
+  records keep their true dates; `created` still records entry time),
+  plus optional `requirement` (relation; empty = ad-hoc),
+  `inspected_by` (free text), `note`, `photo`. **Asset-match rule,
+  enforced server-side:** `requirement`, when set, must belong to the
+  same `asset` — a mismatched pair is rejected no matter who sends it.
+- **`inspection_requirements`** (ADR 0014) is catalog-like data: `asset`
+  (relation), `name`, `interval_days` (positive integer), `reference`
+  (free text). Any signed-in client may create and update; delete is
+  admin-only. **All compliance status is derived, never stored:**
+  next-due = the requirement's latest *passing* inspection's
+  `inspected_at` + `interval_days`; there is no status column anywhere,
+  and there never will be (ADR 0002). Consumers rendering status should
+  treat a requirement with no passing inspection as not current, and an
+  asset whose latest inspection on any requirement is `fail`/
+  `removed_from_service` as out of service.
 
 ## Other contract surface
 

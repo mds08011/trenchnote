@@ -117,6 +117,25 @@ const TNSync = {
     await this.renderBadge();
   },
 
+  // An inspection logged with no signal (ADR 0014). Identical contract to
+  // readings: pre-generated id for idempotent replay, optional photo kept
+  // as a Blob, multipart on the wire. inspected_at was set at capture
+  // time, so a Friday inspection syncing Monday still carries Friday —
+  // the due-date math never shifts by the outage.
+  async enqueueInspection(inspection, photo, label) {
+    inspection.id = inspection.id || this.genId();
+    await this.qAdd({
+      kind: 'inspection',
+      inspection,
+      photo: photo || null,
+      label,
+      queuedAt: new Date().toISOString(),
+      status: 'pending',
+      error: '',
+    });
+    await this.renderBadge();
+  },
+
   // True when a TN.fetch/fetch rejection means "no network" (as opposed
   // to a server response we didn't like, which our code throws as Error).
   isNetworkError(err) {
@@ -166,6 +185,19 @@ const TNSync = {
             for (const k in entry.reading) fd.append(k, entry.reading[k]);
             if (entry.photo) fd.append('photo', entry.photo, 'gauge.jpg');
             res = await fetch(window.location.origin + '/api/collections/readings/records', {
+              method: 'POST',
+              headers: { 'Authorization': localStorage.getItem('tn_token') },
+              body: fd
+            });
+          } else if (entry.kind === 'inspection') {
+            // Inspections (ADR 0014) replay exactly like readings:
+            // multipart so the evidence photo Blob rides along. The
+            // body already carries its client-set inspected_at, so the
+            // compliance date survives the offline gap.
+            const fd = new FormData();
+            for (const k in entry.inspection) fd.append(k, entry.inspection[k]);
+            if (entry.photo) fd.append('photo', entry.photo, 'inspection.jpg');
+            res = await fetch(window.location.origin + '/api/collections/inspections/records', {
               method: 'POST',
               headers: { 'Authorization': localStorage.getItem('tn_token') },
               body: fd

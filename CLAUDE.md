@@ -63,7 +63,7 @@ Do not change these without explicit approval from the maintainer.
   as sole copyright holder (or use a CLA for outside contributors) so a paid
   managed-hosting tier remains possible later.
 
-## Data model — 6 collections
+## Data model — 8 collections
 
 Schema lives in `pb_migrations/` as versioned PocketBase JS migrations, NOT as
 hand-built collections in the admin UI. A fresh self-hoster must be able to
@@ -126,6 +126,24 @@ reproduce the entire database from the repo.
   upcoming list on the dashboard. Dates are stored date-only at UTC
   midnight — always format with `timeZone: 'UTC'` or western timezones show
   the previous day.
+- **`inspection_requirements`** — what an asset owes and how often (ADR
+  0014): `asset` (relation), `name` ("Monthly visual"), `interval_days`
+  (int — the ONLY scheduling concept in the module), `reference` (free-text
+  citation). Catalog-like, manager-edited (update allowed, delete
+  admin-only). Per-asset, not per-item: inspection clocks are per-unit.
+- **`inspections`** — the third append-only ledger (ADR 0014): `asset`,
+  `requirement` (nullable — ad-hoc is real), `result` (`pass` | `fail` |
+  `removed_from_service`), `inspected_by` (text), `inspected_at`
+  (**client-set**, date-only UTC midnight — compliance math must survive
+  offline queues and back-entry; `created` still shows when it entered),
+  `note`, `photo` (nagged for on fail/removed, never required). createRule
+  enforces `requirement.asset = asset` server-side. The RED/YELLOW/GREEN
+  badge is **derived at render time** by `pb_public/tn-inspect.js` (shared
+  by asset.html + index.html — the second exception to self-contained
+  pages, because DO-NOT-USE logic must not drift): RED = latest fail/
+  removed, past due, or no pass on record; YELLOW = due within 14 days (a
+  code constant, not a setting); GREEN = all current; no badge = no
+  requirements. Nothing about compliance is ever stored.
 
 ### Model principles
 
@@ -147,6 +165,7 @@ trenchnote/
 ├── CLAUDE.md              # this file — project context
 ├── README.md              # what it is + quickstart for self-hosters
 ├── USER_GUIDE.md          # field guide for crews — plain language, no jargon
+├── ROADMAP.md             # parked ideas + the free/hosted-tier line
 ├── LICENSE                # AGPLv3
 ├── docs/
 │   ├── DEVELOPER_GUIDE.md # how it works: data model, invariants, patterns

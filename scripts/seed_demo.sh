@@ -342,12 +342,58 @@ R8=$(resv "$A12" "T. Nguyen"   "$(d '+2 days')"  ""               "never mind, r
 api PATCH "collections/reservations/records/$R8" '{"status":"cancelled"}'
 echo "  8 reservations (4 open incl. 1 expired + 1 legacy empty-status, 2 fulfilled, 1 cancelled)"
 
+# ---- Certs & inspections (ADR 0014) ------------------------------------------
+# Safety gear plus the three badge states the docs promise: RED (failed
+# harness), YELLOW (extinguisher due in 10 days), GREEN (freshly
+# calibrated gas monitor). Unlike `created`, inspected_at is CLIENT-SET
+# by design (compliance math keys on the day eyes were on the thing), so
+# the demo can honestly backdate the inspection story.
+# References here are EXAMPLES — real intervals come from your own
+# safety program (see docs/inspection-seeds.md).
+req() { # ASSET NAME INTERVAL_DAYS REF -> id
+  api POST "collections/inspection_requirements/records" \
+    "{\"asset\":\"$1\",\"name\":\"$2\",\"interval_days\":$3,\"reference\":\"$4\"}"
+  rid
+}
+insp() { # ASSET REQ_ID RESULT WHO DATE [NOTE] — REQ_ID "" = ad-hoc
+  _req=${2:+\"$2\"}; _req=${_req:-null}
+  api POST "collections/inspections/records" \
+    "{\"asset\":\"$1\",\"requirement\":$_req,\"result\":\"$3\",\"inspected_by\":\"$4\",\"inspected_at\":\"$5 00:00:00\",\"note\":\"${6:-}\"}"
+}
+
+HARN=$(item "Full-Body Harness" Safety unique)
+EXT=$(item "Fire Extinguisher 10lb ABC" Safety unique)
+GAS=$(item "4-Gas Monitor" Safety unique)
+A27=$(asset A027 "$HARN" owned "" "" H-2231)
+A28=$(asset A028 "$EXT"  owned "" "" FE-118)
+A29=$(asset A029 "$GAS"  owned "" "" GM-77)
+place "$A27" "" "$WWTP" "D. Okafor"
+place "$A28" "" "$YARD" "R. Alvarez"
+place "$A29" "" "$LS4"  "M. Castillo"
+
+R_H=$(req "$A27" "Competent-person inspection" 180 "OSHA 1926.502 - example, set from your program")
+R_EM=$(req "$A28" "Monthly visual" 30 "NFPA 10 / OSHA 1910.157(e)(2) - example")
+R_EA=$(req "$A28" "Annual maintenance" 365 "NFPA 10 - example")
+R_G=$(req "$A29" "Bump test / calibration" 180 "Manufacturer manual - example")
+
+# RED: passed four months ago, failed yesterday — the latest word wins
+insp "$A27" "$R_H"  pass "S. Barnes"  "$(d '-120 days')"
+insp "$A27" "$R_H"  fail "S. Barnes"  "$(d '-1 day')" "cut webbing at dorsal D-ring"
+# YELLOW: monthly visual passed 20 days ago -> due again in 10
+insp "$A28" "$R_EM" pass "R. Alvarez" "$(d '-20 days')"
+insp "$A28" "$R_EA" pass "FireCo service" "$(d '-100 days')" "6-year teardown current"
+# GREEN: calibrated 10 days ago -> due in 170
+insp "$A29" "$R_G"  pass "M. Castillo" "$(d '-10 days')" "bump test ok"
+echo "  3 safety assets, 4 requirements, 5 inspections (1 RED, 1 YELLOW, 1 GREEN badge)"
+
 echo ""
 echo "Done. Open $TN_URL and sign in — the dashboard should show 6"
-echo "locations (job codes + notify emails on the jobsites), 26 assets,"
+echo "locations (job codes + notify emails on the jobsites), 29 assets,"
 echo "10 materials with derived stock, a spoken-for queue, a busy"
 echo "recently-moved feed, and meter readings on A006/A008/A026 (A026's"
 echo "odometer history includes a flagged lower-than-previous entry)."
+echo "The Inspections panel should flag A027 (RED, failed harness) and"
+echo "A028 (YELLOW, extinguisher visual due in 10 days); A029 is green."
 echo ""
 echo "Note: all movement timestamps read 'now' — the public API cannot"
 echo "backdate an append-only ledger (that's a feature). Sequences and"

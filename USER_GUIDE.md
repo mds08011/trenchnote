@@ -61,6 +61,56 @@ Under the big location box you may also see **"Charging to job …"** —
 that's the job number this site's equipment time is billed to. If gear is
 sitting on a job it shouldn't be billed to, that line is the tell.
 
+## Inspections (harnesses, extinguishers, slings, monitors…)
+
+Some gear is only legal to use until a date — and that date used to live
+on a paper tag. Now it's on the same page you scan.
+
+**Reading the badge.** When gear has inspections set up, its page shows a
+colored box:
+
+- **Red "DO NOT USE"** — it failed its last inspection, was pulled from
+  service, or an inspection is overdue. Don't use it, don't get creative.
+  Tell your PM, or if you're the competent person, inspect it and log the
+  result.
+- **Yellow "due soon"** — still fine to use, but an inspection comes due
+  within two weeks. Good time to get it done.
+- **Green** — all inspections current. Go to work.
+- **No box at all** — this gear doesn't have inspections set up. Most
+  equipment doesn't; that's normal.
+
+Tap the box to see the list — what gets inspected, how often, when it was
+last done, and the full history.
+
+**Logging an inspection.** On the gear's page, tap the badge (or
+**🛡 Inspections & certs**), pick which inspection you did (or "ad-hoc"
+for a one-off check), tap pass / fail / removed from service, put your
+name on it, and **take a photo** — especially on a fail. The photo of the
+cut webbing or the dead gauge is what ends arguments later. The app will
+nag you once if you skip the photo on a fail, but it won't stop you —
+pulling bad gear from service matters more than the picture.
+
+Works with zero bars, same as moves — it saves on the phone and sends
+itself when signal returns.
+
+**The red badge shows up before the move button on purpose.** Whether
+you're allowed to use a thing beats where it sits. You can still move
+red-tagged gear (hauling a bad harness back to the shop is the right
+move) — you just can't miss that it's bad.
+
+**Same ledger rules as everything else:** never fix an old inspection —
+log a new one. Fat-fingered a fail? Log the correct result as a new
+entry; the history keeps both and the story stays honest.
+
+**For PMs / safety folks:** set up what a piece of gear owes under
+**⚙ Manage requirements** on its page — a name ("Monthly visual"), how
+many days between inspections, and where the rule comes from. Starter
+templates are in `docs/inspection-seeds.md`, but set the intervals from
+*your* safety program — the app shows status, it isn't the program. The
+dashboard's **Inspections** panel lists everything red and yellow,
+worst first — that's your Monday-morning walk list. There's a CSV export
+of the whole inspection history at the bottom of the panel for audits.
+
 ## Walking the yard (inventory check)
 
 Doing a walk-through to see what's actually on site? Open **📷 Scan** and
@@ -199,8 +249,9 @@ TrenchNote keeps working with zero bars:
   it sends itself (or tap the tag to send it now). Don't clear the browser
   or sign out while that tag is showing — that data hasn't reached the
   office yet.
-- **Meter readings work offline too** — photo and all. They ride the same
-  ⏳ queue as moves and send themselves when signal returns.
+- **Meter readings, deliveries, and inspections work offline too** —
+  photos and all. They ride the same ⏳ queue as moves and send
+  themselves when signal returns, keeping the date you actually did them.
 - If the tag turns **red**, one of your saved moves couldn't be accepted —
   tap it, read why, and check with your PM before discarding anything.
 

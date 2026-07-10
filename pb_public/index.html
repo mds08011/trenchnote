@@ -22,6 +22,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <script src="tn-auth.js"></script>
 <script src="tn-sync.js"></script>
+<script src="tn-inspect.js"></script>
 <script defer src="vendor/alpine.min.js"></script>
 
 <style>
@@ -125,6 +126,22 @@
     padding: 0 4px; margin-left: 4px;
   }
 
+  /* ---- Inspections panel (ADR 0014) --------------------------------
+     The Monday-morning safety walk: RED first, then YELLOW by due date.
+     Colors match the asset-page badge — one verdict, two pages. */
+  .insp-dot {
+    flex: 0 0 12px; width: 12px; height: 12px; border-radius: 50%;
+  }
+  .insp-dot.red    { background: #a1160a; }
+  .insp-dot.yellow { background: #b87400; }
+  .insp-why { display: block; font-size: 12px; color: var(--steel); }
+  .insp-why.red { color: #a1160a; font-weight: 700; }
+  .csv {
+    background: none; border: none; padding: 0; margin-top: 8px;
+    font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+    color: var(--steel); text-decoration: underline;
+  }
+
   .empty { color: var(--steel); padding: 14px 12px; font-size: 14px; }
   .error { margin-top: 14px; padding: 14px; background: #fdecea; color: #a1160a; font-weight: 600; }
   .loading { color: var(--steel); padding: 40px 0; text-align: center; }
@@ -157,6 +174,34 @@
 
   <template x-if="state === 'ready'">
     <main>
+      <!-- Inspections (ADR 0014): only renders once the module is in use
+           (some asset has a requirement or an inspection). RED assets
+           first, then YELLOW by due date — this list IS the Monday
+           safety walk. Verdicts come from tn-inspect.js, same as the
+           asset page. -->
+      <template x-if="inspInUse">
+        <div>
+          <h2>Inspections</h2>
+          <section class="group">
+            <template x-for="e in inspFlagged" :key="e.asset.id">
+              <a class="asset-row" :href="'asset.html?code=' + encodeURIComponent(e.asset.tag_code)">
+                <span class="insp-dot" :class="e.badge"></span>
+                <span class="tag" x-text="e.asset.tag_code"></span>
+                <span class="name">
+                  <span x-text="e.asset.expand?.item?.name || 'Unknown item'"></span>
+                  <span class="insp-why" :class="e.badge" x-text="e.line"></span>
+                </span>
+              </a>
+            </template>
+            <div class="empty" x-show="!inspFlagged.length">
+              All inspections current. ✓
+            </div>
+          </section>
+          <button class="csv" @click="exportInspectionsCsv()" :disabled="csvBusy"
+                  x-text="csvBusy ? 'Exporting…' : '⬇ Export inspection ledger (CSV)'"></button>
+        </div>
+      </template>
+
       <h2>Assets by location</h2>
 
       <template x-for="g in groups" :key="g.id">
@@ -263,6 +308,10 @@ function dashboard() {
     deliveries: [],
     consumptions: [],
     reservations: [],
+    // Inspections (ADR 0014)
+    inspReqs: [],
+    inspAll: [],
+    csvBusy: false,
 
     // Locations in name order, each with its assets attached; a synthetic
     // "Unassigned" bucket catches assets with no current_location. Groups
@@ -315,6 +364,98 @@ function dashboard() {
       return !!r.expected_release && r.expected_release < today;
     },
 
+    // The module is "in use" once anything has a requirement or an
+    // inspection; before that the panel doesn't exist — most deployments
+    // that never touch inspections never see it.
+    get inspInUse() {
+      return this.inspReqs.length > 0 || this.inspAll.length > 0;
+    },
+
+    // One verdict per asset via tn-inspect.js (the same code the asset
+    // page runs), then: RED first, then YELLOW ordered soonest-due.
+    // GREEN assets don't appear — the panel is a worklist, not a trophy
+    // case; "all current" is one line.
+    get inspFlagged() {
+      const reqsBy = {}, inspBy = {};
+      for (const r of this.inspReqs) (reqsBy[r.asset] = reqsBy[r.asset] || []).push(r);
+      for (const i of this.inspAll) (inspBy[i.asset] = inspBy[i.asset] || []).push(i);
+
+      const out = [];
+      for (const a of this.assets) {
+        if (!reqsBy[a.id] && !inspBy[a.id]) continue;
+        const v = TNInspect.assess(reqsBy[a.id] || [], inspBy[a.id] || []);
+        if (v.badge !== 'red' && v.badge !== 'yellow') continue;
+        let line, dueIn = Infinity;
+        if (v.badge === 'red') {
+          line = 'DO NOT USE — ' + (v.reasons[0] || 'inspection problem');
+        } else {
+          const soon = v.rows.filter((r) => r.state === 'due_soon')
+            .sort((x, y) => x.dueIn - y.dueIn)[0];
+          dueIn = soon.dueIn;
+          line = soon.req.name + ' — ' + soon.label;
+        }
+        out.push({ asset: a, badge: v.badge, line, dueIn });
+      }
+      return out.sort((x, y) =>
+        (x.badge === 'red' ? 0 : 1) - (y.badge === 'red' ? 0 : 1) ||
+        x.dueIn - y.dueIn ||
+        String(x.asset.tag_code).localeCompare(String(y.asset.tag_code)));
+    },
+
+    // The full inspection ledger as a CSV download — free tier, no
+    // server code: paginate the API (the panel's 500-cap shortcut isn't
+    // good enough for an export), build the file in memory, hand it to
+    // the browser. Excel-safe quoting; one row per inspection.
+    async exportInspectionsCsv() {
+      this.csvBusy = true;
+      try {
+        const rows = [];
+        let page = 1, totalPages = 1;
+        do {
+          const res = await TN.fetch(
+            `${PB}/api/collections/inspections/records?sort=inspected_at,created&perPage=500&page=${page}` +
+            `&expand=asset.item,requirement`);
+          if (!res.ok) throw new Error('API error ' + res.status);
+          const data = await res.json();
+          totalPages = data.totalPages;
+          rows.push(...data.items);
+          page++;
+        } while (page <= totalPages);
+
+        const esc = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+        const lines = [
+          ['inspected_at', 'tag_code', 'item', 'requirement', 'reference',
+           'result', 'inspected_by', 'note', 'has_photo', 'entered_at', 'record_id']
+            .map(esc).join(','),
+        ];
+        for (const i of rows) {
+          lines.push([
+            String(i.inspected_at).slice(0, 10),
+            i.expand?.asset?.tag_code || i.asset,
+            i.expand?.asset?.expand?.item?.name || '',
+            i.expand?.requirement?.name || 'ad-hoc',
+            i.expand?.requirement?.reference || '',
+            i.result,
+            i.inspected_by || '',
+            i.note || '',
+            i.photo ? 'yes' : 'no',
+            i.created,
+            i.id,
+          ].map(esc).join(','));
+        }
+        const blob = new Blob([lines.join('\r\n')], { type: 'text/csv' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'trenchnote-inspections-' + new Date().toISOString().slice(0, 10) + '.csv';
+        a.click();
+        URL.revokeObjectURL(a.href);
+      } catch (err) {
+        alert('Export failed: ' + err.message);
+      } finally {
+        this.csvBusy = false;
+      }
+    },
+
     fmtDate(pbDate) {
       // Dates are stored date-only at UTC midnight ("2026-07-14 00:00:00Z").
       // Format in UTC too, or western timezones would show the day before.
@@ -334,8 +475,9 @@ function dashboard() {
 
     async load() {
       try {
-        // Three reads, fired in parallel to keep slow connections snappy.
-        const [locRes, assetRes, mvRes, itemRes, delRes, consRes, resvRes] = await Promise.all([
+        // Independent reads, fired in parallel to keep slow connections snappy.
+        const [locRes, assetRes, mvRes, itemRes, delRes, consRes, resvRes,
+               iqRes, insRes] = await Promise.all([
           TN.fetch(`${PB}/api/collections/locations/records?sort=name&perPage=200`),
           TN.fetch(`${PB}/api/collections/assets/records?expand=item&sort=tag_code&perPage=500`),
           // Nested expand: "asset.item" resolves the movement's asset AND
@@ -349,9 +491,18 @@ function dashboard() {
           TN.fetch(`${PB}/api/collections/movements/records?filter=(item!=''%26%26from_location='')&perPage=500`),
           TN.fetch(`${PB}/api/collections/movements/records?filter=(item!=''%26%26to_location='')&perPage=500`),
           TN.fetch(`${PB}/api/collections/reservations/records?sort=needed_by&perPage=100&expand=asset.item`),
+          // Inspections (ADR 0014): every requirement + the most recent
+          // 500 inspections — enough to derive every asset's badge at
+          // division scale (same perPage ceiling the ledger reads accept;
+          // the CSV export paginates properly instead).
+          TN.fetch(`${PB}/api/collections/inspection_requirements/records?perPage=500`),
+          TN.fetch(`${PB}/api/collections/inspections/records?sort=-inspected_at,-created&perPage=500`),
         ]);
-        const bad = [locRes, assetRes, mvRes, itemRes, delRes, consRes, resvRes].find(r => !r.ok);
+        const bad = [locRes, assetRes, mvRes, itemRes, delRes, consRes, resvRes,
+                     iqRes, insRes].find(r => !r.ok);
         if (bad) throw new Error('API error ' + bad.status);
+        this.inspReqs = (await iqRes.json()).items;
+        this.inspAll = (await insRes.json()).items;
         this.locations = (await locRes.json()).items;
         this.assets = (await assetRes.json()).items;
         this.movements = (await mvRes.json()).items;

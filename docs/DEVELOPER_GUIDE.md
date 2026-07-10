@@ -45,8 +45,8 @@ trenchnote/
 
 ## Data model
 
-Six collections, created by the migrations in `pb_migrations/` (one file per
-collection, plus later alterations). PocketBase applies pending migrations
+Eight collections, created by the migrations in `pb_migrations/` (one file
+per collection, plus later alterations). PocketBase applies pending migrations
 automatically at startup, in filename order — a fresh clone reproduces the
 whole database on first `serve`.
 
@@ -162,6 +162,32 @@ never stored: **latest reading** = newest record per asset, and the
 **lower-than-previous flag** = a reading smaller than its predecessor
 (meter replaced, or a typo — flagged in the UI at render time by comparing
 neighbors, accepted either way).
+
+### inspection_requirements + inspections — compliance (ADR 0014)
+
+`inspection_requirements` is catalog-like: what a specific asset owes and
+how often (`name`, `interval_days`, free-text `reference`). Managers
+update it as the safety program changes; delete is admin-only so an
+obligation can't be fat-thumbed away from under its history.
+
+`inspections` is the **third append-only ledger**: `result`
+(`pass` | `fail` | `removed_from_service`), `inspected_by`, `note`,
+optional `photo`, and a **client-set `inspected_at`** (date-only UTC
+midnight) — compliance math keys on the day the eyes were on the thing,
+so an offline Friday inspection syncing Monday still reads Friday, and
+back-entered paper records keep their true dates (`created` still shows
+when the row entered the system — a big gap between the two is visible
+evidence of back-entry, not hidden). The createRule enforces the
+integrity shape server-side: ad-hoc (`requirement` empty) or a
+requirement **on the same asset** (`requirement.asset = asset`).
+
+Everything shown about compliance — next-due dates, overdue, the
+RED/YELLOW/GREEN badge — is **derived at render time** by
+`pb_public/tn-inspect.js`, the second shared-file exception after
+tn-auth.js (asset page and dashboard must give the same do-not-use
+verdict; see the file header for the exact rules). No status column
+exists. Requirement starters live in
+[inspection-seeds.md](inspection-seeds.md) — examples, not advice.
 
 ## The two invariants
 
@@ -317,7 +343,7 @@ TrenchNote is open-core: this AGPL repo is complete and self-sufficient,
 and any paid tooling lives *outside* it, talking to PocketBase's REST API
 like any other client would
 ([ADR 0011](adr/0011-core-premium-extension-boundary.md)). The practical
-consequence for anyone working here: the six collections' shapes and rules
+consequence for anyone working here: the eight collections' shapes and rules
 are a published contract ([API.md](API.md)), so breaking changes to them
 need an ADR and a contract version bump — not just a migration. Nothing in
 this repo may ever reference, detect, or depend on premium code.
@@ -356,8 +382,11 @@ covered in [DEPLOY.md](DEPLOY.md).
 ### Seeding a demo instance
 
 `scripts/seed_demo.sh` fills a local instance with realistic fake data —
-6 locations, 25 assets (some rented), 10 bulk materials, ~80 movements in
-all three bulk shapes, reservations in every lifecycle state — so sidecar
+6 locations, 29 assets (some rented), 10 bulk materials, ~80 movements in
+all three bulk shapes, reservations in every lifecycle state, and
+inspection requirements exercising all three badge colors (a failed
+harness, an extinguisher due in 10 days, a current gas monitor —
+possible because `inspected_at` is client-set, ADR 0014) — so sidecar
 and premium development runs against the real API instead of mock JSON.
 It writes **only through the public API contract** ([API.md](API.md)),
 authenticated as an ordinary user, exactly as a sidecar would (ADR 0011) —
