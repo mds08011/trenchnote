@@ -31,11 +31,13 @@ trenchnote/
 │   ├── index.html          # dashboard: assets by location, materials, spoken-for, feed
 │   ├── asset.html          # QR landing page: view, move, reserve one asset
 │   ├── material.html       # bulk item: derived stock per location, move quantities
+│   ├── receiving.html      # print-friendly receiving report (ADR 0013)
 │   ├── labels.html         # printable QR sheet for all assets
 │   ├── scan.html           # in-app QR scanner + inventory walk mode
 │   ├── login.html          # sign-in; stores the PocketBase token in localStorage
 │   ├── tn-auth.js          # shared auth helper — TN.fetch, TN.requireLogin
 │   ├── tn-sync.js          # offline write queue (IndexedDB), sync badge, stale banner
+│   ├── tn-inspect.js       # derived inspection badge — one verdict, two pages (ADR 0014)
 │   ├── sw.js               # service worker: shell cache-first, API network-first
 │   ├── manifest.json       # PWA manifest (+ icon-192/512.png)
 │   └── vendor/             # alpine.min.js, qrcode.min.js — committed on purpose
@@ -298,12 +300,31 @@ Two files, no dependencies, no build step:
   problems with 400 on creates; auth must be checked separately. Failures
   park visibly (red badge, human-tap discard); nothing is silently dropped.
 
-  Since ADR 0012 the queue holds two entry kinds: movements (entries with
-  no `kind`, the original shape — old pending entries keep working) and
-  `kind: 'reading'` meter readings. Readings replay as **multipart** form
-  data because the gauge photo rides along — IndexedDB stores the `File`
-  as a Blob natively, no base64 games. Same pre-generated-id idempotency,
-  same FIFO order, so a reading queued behind its movement lands after it.
+  Since ADR 0012/0014 the queue holds three entry kinds: movements
+  (entries with no `kind`, the original shape — old pending entries keep
+  working), `kind: 'reading'` meter readings, and `kind: 'inspection'`
+  (whose client-set `inspected_at` survives the outage). Readings and
+  inspections replay as **multipart** form data because the photo rides
+  along — IndexedDB stores the `File` as a Blob natively, no base64
+  games. Same pre-generated-id idempotency, same FIFO order.
+
+  Movement entries can also carry a `files` payload (ADR 0013): a
+  delivery logged offline queues its packing-slip photo and damage
+  close-ups as Blobs (`TNSync.enqueue(movement, assetPatch, label,
+  files)`), and the replay switches to multipart when files are present —
+  JSON otherwise, so pre-0013 pending entries replay byte-identically.
+  In the multipart build, `null` fields are *skipped*, never appended:
+  FormData stringifies `null` into the literal text `"null"`.
+
+  Two hard-won rules for anything new that touches this queue:
+  everything stored must be **plain data** — Alpine wraps component
+  state (arrays especially) in reactive Proxies, and IndexedDB's
+  structured clone rejects a Proxy with `DataCloneError`, losing the
+  queued record (enqueue defensively rebuilds; keep it that way). And
+  the service worker **precaches with `cache: 'reload'`** — without it,
+  the browser's HTTP cache can feed a *stale* copy of a page into a
+  brand-new shell cache right after a deploy, and phones keep old code
+  despite the VERSION bump.
 
 Conflict stance in one line: the ledger's order is arrival order, the
 cache converges to the latest entry, bulk sums converge under any

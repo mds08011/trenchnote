@@ -88,11 +88,24 @@ to log deliveries and moves as quantities. Stock per location is always
 derived from the movement ledger, never stored. Material that gets installed
 doesn't vanish from history — log it as **Used / consumed** (it leaves stock
 but stays in the ledger, with a note for the PO or where it went), so vendor
-disputes stay winnable.
+disputes stay winnable. Deliveries carry their own evidence: a packing-slip
+photo taken at the truck, vendor, PO number, and an over/short/damaged note —
+and `receiving.html` prints them per material or per PO as the report you
+attach to the dispute email.
 
 Need a machine for an upcoming pour? Any asset page has a **Reserve** option;
 the claim shows up as a "spoken for" warning to anyone who scans that asset,
 and on the dashboard.
+
+Gear that's only legal to use until a date — harnesses, extinguishers,
+slings, gas monitors — can carry **inspection requirements**. The same scan
+that answers "where is it" then answers "is it safe to use": a derived
+RED **do-not-use** / YELLOW **due-soon** / GREEN badge on the asset page, a
+worst-first panel on the dashboard for the Monday safety walk, one-tap
+inspection logging (works offline), and a CSV export of the append-only
+inspection history. It records inspections — it is not a safety program,
+and requirement intervals must come from yours (templates with that warning
+in [docs/inspection-seeds.md](docs/inspection-seeds.md)).
 
 ### Testing from a phone
 

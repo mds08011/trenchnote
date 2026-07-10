@@ -17,7 +17,7 @@
 // Writes (POST/PATCH) pass straight through — offline queueing happens in
 // tn-sync.js where the user can SEE it, not in service-worker magic.
 
-const VERSION = 'v8';                    // bump on every shell change
+const VERSION = 'v12';                   // bump on every shell change
 const SHELL_CACHE = 'tn-shell-' + VERSION;
 const API_CACHE = 'tn-api-' + VERSION;
 
@@ -26,11 +26,13 @@ const SHELL = [
   'index.html',
   'asset.html',
   'material.html',
+  'receiving.html',
   'labels.html',
   'login.html',
   'scan.html',
   'tn-auth.js',
   'tn-sync.js',
+  'tn-inspect.js',
   'manifest.json',
   'icon-192.png',
   'icon-512.png',
@@ -46,7 +48,13 @@ const SHELL = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(SHELL_CACHE)
-      .then((cache) => cache.addAll(SHELL))
+      // cache: 'reload' bypasses the browser's HTTP cache. Without it,
+      // PocketBase's Last-Modified headers let the browser heuristically
+      // cache statics, and a deploy shortly after a visit precaches the
+      // STALE copies into the new shell cache — phones keep old code
+      // even though VERSION was bumped. (Found the hard way; SW-context
+      // fetches aren't intercepted by fetch handlers, so no recursion.)
+      .then((cache) => cache.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' }))))
       .then(() => self.skipWaiting())   // new worker takes over without a tab-close dance
   );
 });

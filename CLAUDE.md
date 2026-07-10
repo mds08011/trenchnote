@@ -177,11 +177,13 @@ trenchnote/
 │   ├── index.html         # dashboard: assets by location, materials, recently moved
 │   ├── asset.html         # scan landing page: view + move an asset
 │   ├── material.html      # bulk item: stock per location (derived) + move quantities
+│   ├── receiving.html     # print-friendly receiving report (ADR 0013)
 │   ├── labels.html        # print QR labels for all assets
 │   ├── scan.html          # in-app QR scanner; walk mode audits a location
 │   ├── login.html         # sign in; token to localStorage
 │   ├── tn-auth.js         # shared auth helper (TN.fetch / TN.requireLogin)
 │   ├── tn-sync.js         # offline write queue + sync badge + stale banner
+│   ├── tn-inspect.js      # derived inspection badge logic (ADR 0014)
 │   ├── sw.js              # service worker (bump VERSION on any pb_public change!)
 │   ├── manifest.json      # PWA manifest (+ icon-192/512.png)
 │   └── vendor/            # vendored alpine.min.js, qrcode.min.js
@@ -233,6 +235,15 @@ with auth-required rules from day one.
 - No vendor API integrations. Rentals stay manual (`ownership=rented`).
 - No accounting, scheduling, or document management. TrenchNote is a logistics
   ledger and stays one.
+- **No purchase orders / procurement** (ADR 0013). `po_number` on a delivery
+  is a free-text string a human types — TrenchNote knows what *arrived*,
+  never what was *ordered*. No PO records, no line items, no received-vs-
+  ordered matching, no three-way match. That's the accounting department's
+  spreadsheet, and the wall stays up.
+- **The inspections module is a visibility layer, not a safety program**
+  (ADR 0014). It records inspections; it does not schedule work, assign
+  inspectors, or constitute compliance. If a feature request needs workflow
+  — assignments, approvals, escalations — the answer is no.
 - No multi-tenant shared-database complexity. The future SaaS tier is one
   PocketBase instance per customer (Vikunja-style), which is simpler and safer.
 - No multi-master sync between instances. Deployment is one writable VPS with

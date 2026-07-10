@@ -157,8 +157,9 @@ disabled, so accounts are created by the admin in the PocketBase UI.
   fields, changed rules, changed URL patterns) require an ADR and bump this
   document's version, announced in release notes.
 - Contract v1 as published here reflects the schema through migration
-  `1783468810` (timecard data capture, ADR 0012 — an additive change:
-  one new collection and four new optional fields).
+  `1783468815` (readings — ADR 0012; certs & inspections — ADR 0014;
+  receiving log — ADR 0013; all additive: new collections and optional
+  fields only).
 - Core is currently developed and tested against **PocketBase 0.39.x**
   (pin with `PB_VERSION=0.39.6 ./scripts/setup.sh`). A PocketBase upgrade
   that changes REST behavior is treated as a breaking change and handled
