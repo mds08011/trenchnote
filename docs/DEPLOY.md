@@ -9,6 +9,41 @@ a dead SD card can't erase eighteen months of ledger history.
 > HTTPS setup — never expose the bare HTTP port to the world — and use
 > strong passwords on the admin and user accounts.
 
+## First-boot hardening (any internet-reachable box)
+
+Before the app, in this order (learned on the real deployment). On a LAN-only
+trailer box this is optional; on a VPS it is not.
+
+1. `apt update && apt upgrade -y`, then reboot if `/var/run/reboot-required`
+   exists (fresh images usually have a pending kernel).
+2. **A non-root admin user, key-only:**
+   `adduser --disabled-password --gecos "" deploy`, add to `sudo` group, copy
+   `/root/.ssh/authorized_keys` into `/home/deploy/.ssh/` (mode 700/600,
+   owned by deploy). A passwordless account can't use password-prompting
+   sudo — grant it explicitly:
+   `echo 'deploy ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/deploy` and
+   validate with `visudo -c`. **Verify you can SSH in as deploy and sudo
+   works BEFORE the next step** — and keep your root session open until
+   you have.
+3. **Disable root login and passwords** with a drop-in at
+   `/etc/ssh/sshd_config.d/00-hardening.conf`:
+   ```
+   PermitRootLogin no
+   PasswordAuthentication no
+   KbdInteractiveAuthentication no
+   ```
+   The `00-` prefix matters: OpenSSH keeps the *first* value it sees, and
+   cloud images ship a `50-cloud-init.conf` that would otherwise win.
+   Validate with `sshd -t` (silence = valid), then `systemctl reload ssh`,
+   then prove root is refused and deploy still works before closing anything.
+4. **Firewall, allows queued before enabling:**
+   `ufw allow OpenSSH && ufw allow 80/tcp && ufw allow 443/tcp && ufw enable`.
+   Note what's absent: 8090. PocketBase binds to localhost and is reachable
+   only through Caddy.
+5. `apt install unattended-upgrades` and enable it (both lines in
+   `/etc/apt/apt.conf.d/20auto-upgrades` set to `"1"`), so security patches
+   don't wait for you.
+
 ## Option A — a box on the LAN (job trailer, office)
 
 The right first deployment: a Raspberry Pi, a mini PC, or any always-on
@@ -17,11 +52,14 @@ no monthly bill.
 
 ```sh
 # On the box (any Linux; a Pi 3 or better is plenty):
-sudo useradd --system --create-home --home-dir /opt/trenchnote trenchnote
+sudo useradd --system --create-home --home-dir /opt/trenchnote --shell /usr/sbin/nologin trenchnote
 sudo -u trenchnote git clone https://github.com/mds08011/trenchnote.git /opt/trenchnote/app
-cd /opt/trenchnote/app
-sudo -u trenchnote ./scripts/setup.sh
+sudo -u trenchnote sh -c "cd /opt/trenchnote/app && ./scripts/setup.sh"
 ```
+
+(`--shell /usr/sbin/nologin`: the app account is not for humans. The
+`sh -c` wrapper is because your admin user can't `cd` into the app user's
+home — that's the 750 permissions working, not a problem.)
 
 Give the box a **fixed address** — reserve its IP in your router's DHCP
 settings (e.g. `192.168.1.50`). The QR labels will encode this address;
@@ -240,6 +278,9 @@ click through the pages. Ten minutes of rehearsal against real data, and
 production upgrades stop being exciting.
 
 ## Quick reference
+
+Day-two operations — restarts, logs, restores, password rotation, safe
+PocketBase upgrades — live in [RUNBOOK.md](RUNBOOK.md).
 
 | Task | Command |
 |---|---|

@@ -110,6 +110,8 @@ before printing, so the QR codes point somewhere phones can actually reach.
 - **[docs/API.md](docs/API.md)** — the public API contract (v1): what
   integrations and third-party tools may build on, and the stability
   promise that comes with it.
+- **[docs/RUNBOOK.md](docs/RUNBOOK.md)** — day-two operations: restarts,
+  logs, restores, password rotation, safe upgrades.
 - **[docs/adr/](docs/adr)** — architecture decision records: why a single
   binary + static pages, and why an append-only ledger.
 
