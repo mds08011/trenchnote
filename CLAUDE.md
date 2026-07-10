@@ -78,8 +78,10 @@ reproduce the entire database from the repo.
   `transit`), plus two optional office-facing facts (ADR 0012): `job_code`
   (text — the accounting job number equipment time here is billed to; an
   asset's "current job" is DERIVED as its current location's job_code,
-  never stored) and `notify_email` (the PM/super to notify when equipment
-  leaves this site).
+  never stored) and `notify_email` (the PM/super who is emailed by
+  `pb_hooks/main.pb.js` the moment a movement with a destination leaves
+  this site — best-effort via PocketBase's built-in mailer, silent
+  log-line skip when SMTP isn't configured, never blocks the write).
 - **`assets`** — a specific physical instance of a unique item.
   `item` (relation→items), `tag_code` (text, **unique index**), `serial_number`,
   `ownership` (select: `owned` | `rented`), `vendor`, `po_number`,
@@ -145,6 +147,7 @@ trenchnote/
 │   └── adr/               # architecture decision records (the WHY)
 ├── .gitignore             # ignore the pocketbase binary and pb_data/
 ├── pb_migrations/         # versioned schema (COMMITTED)
+├── pb_hooks/              # server hooks: off-site move email (ADR 0012)
 ├── pb_public/             # the static frontend
 │   ├── index.html         # dashboard: assets by location, materials, recently moved
 │   ├── asset.html         # scan landing page: view + move an asset

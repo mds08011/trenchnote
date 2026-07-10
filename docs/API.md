@@ -70,8 +70,11 @@ Highlights that are load-bearing for API clients:
 - **Billing facts on locations (ADR 0012):** `job_code` is the accounting
   job number equipment time at that location is billed to; an asset's
   "current job" is derived as its current location's `job_code` and is
-  deliberately stored nowhere. `notify_email` is the PM/super to notify
-  when equipment leaves the location.
+  deliberately stored nowhere. `notify_email`, when set, makes the core
+  email that address whenever a movement with a destination leaves the
+  location — best-effort via the instance's SMTP settings, server-side.
+  API clients get no delivery feedback and must not depend on it; a mail
+  failure never fails the movement create.
 - **`items.meter`** (`hours` | `odometer`, empty = no meter) drives
   whether the UI offers a reading at scan time; `assets.assigned_to` is
   free-text custodianship. Both optional, both plain facts with no

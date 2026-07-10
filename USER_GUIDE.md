@@ -26,6 +26,10 @@ under it (like `A001`).
 
 Type your name once — the phone remembers it after that.
 
+Heads up: on sites where the PM has turned it on, logging a move **off** a
+site automatically emails that site's PM. That's the point — no more gear
+vanishing unannounced. Log honestly and nobody has to make angry calls.
+
 **Sticker too muddy or scratched to scan?** Use the code printed under it:
 open TrenchNote in your browser, find that code on the dashboard list, and
 tap it. Same page.

@@ -25,6 +25,8 @@ configuration.
 ```
 trenchnote/
 ├── pb_migrations/          # versioned schema — the ONLY source of the DB shape
+├── pb_hooks/
+│   └── main.pb.js          # server hooks: the off-site move email (ADR 0012)
 ├── pb_public/
 │   ├── index.html          # dashboard: assets by location, materials, spoken-for, feed
 │   ├── asset.html          # QR landing page: view, move, reserve one asset
@@ -273,6 +275,28 @@ ADR 0008.
 Testing offline locally: sign in, load the pages once (warms the caches),
 then kill PocketBase and reload — the app must still open and render, with
 the stale banner up. Queue a move, restart PocketBase, tap the badge.
+
+## Server hooks: the off-site move email (ADR 0012)
+
+`pb_hooks/main.pb.js` is TrenchNote's first server-side hook, and it holds
+to one discipline: **best-effort, never blocking**. It runs
+`onRecordAfterCreateSuccess` on `movements` — the ledger write is already
+committed before the hook fires — and everything inside is try/caught, so
+the worst any mail problem can do is leave a log line.
+
+The rule: a movement with a real destination (`to_location` set) leaving a
+location whose `notify_email` is set → one plain-text email to that
+address via **PocketBase's built-in mailer** (Admin UI → Settings → Mail
+settings; setup walkthrough in [DEPLOY.md](DEPLOY.md)). Receives don't
+notify (nothing left anywhere) and neither do consumes (material installed
+*on* the site never left it). SMTP not configured → one `info` log line
+per skipped notice; send failure → one `warn` line with the error. Both
+are searchable in Admin UI → Logs under "TrenchNote notify".
+
+Known tradeoff: the send is synchronous inside the request, so SMTP
+settings pointing at a dead server make notified moves wait out the
+connection attempt. That's documented for operators in DEPLOY.md; the
+boring built-in mailer beats a queue nobody operates.
 
 ## The public API contract
 

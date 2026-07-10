@@ -24,6 +24,13 @@ general contractor, for the real problems of shared-equipment divisions:
 internal tools bartered between sites, materials vanishing from staging yards,
 and rented gear nobody remembers is still on rent.
 
+Because the ledger already knows where everything sat and when, it also
+captures what the office needs to bill equipment time to jobs: a job code
+per location, optional hour-meter/odometer readings (with a gauge photo) at
+the scan moment or on a month-end walkdown, and an email to a site's PM the
+instant something is logged as leaving their site — before the truck is out
+of the gate, not on Friday.
+
 ## Design principles
 
 - **Works on a cheap smartphone on a dirt lot with bad reception — or none.**

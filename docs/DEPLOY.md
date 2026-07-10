@@ -138,6 +138,80 @@ see Backups below). Then reprint every label — the old QRs encode the LAN
 IP, which phones on cell data can't reach. This is why you don't laminate
 200 labels before choosing where TrenchNote lives.
 
+## Off-site move alerts (email setup)
+
+When a location has a **notify email** set, TrenchNote emails that address
+the moment anything is logged as leaving that location — item, tag code,
+where it went, who moved it, and a link. The losing site's PM finds out
+when the truck pulls away, not on Friday.
+
+Two steps: tell TrenchNote how to send email (once per install), then say
+who gets notified (per location).
+
+**No email server configured? Nothing breaks.** Moves work exactly the
+same; TrenchNote just notes "SMTP not configured — skipped off-site
+email" in its log (Admin UI → Logs) and carries on. The alert is
+best-effort by design — a scan can never fail because a mail server did.
+
+### Step 1 — give TrenchNote a way to send email
+
+TrenchNote doesn't run its own mail server (nobody should); it hands the
+message to one you already have, using a protocol called SMTP — think of
+it as the address and password of a post office.
+
+Open **Admin UI → Settings → Mail settings**:
+
+1. **Sender name / sender address** — what the email appears from, e.g.
+   `TrenchNote` / `trenchnote@yourcompany.com`.
+2. Toggle **SMTP** on and fill in the four boxes from your provider:
+
+   **Google Workspace / Gmail:**
+   - SMTP server host: `smtp.gmail.com` · Port: `587` (leave TLS off —
+     port 587 upgrades to encryption automatically)
+   - Username: the Google account address the mail should come from
+   - Password: an **App password**, not the account password — create one
+     at myaccount.google.com → Security → 2-Step Verification → App
+     passwords (2-Step must be on). Google caps sending (~2,000/day on
+     Workspace, 500 on plain Gmail) — far more than a division moving
+     equipment will ever send.
+
+   **A transactional mail service (SMTP2GO, Mailgun, Postmark…):** sign
+   up, add/verify your sending domain or address, and the dashboard hands
+   you exactly these four values — e.g. SMTP2GO: host `mail.smtp2go.com`,
+   port `587`, plus the username/password it generates. Free tiers
+   (SMTP2GO: ~1,000 emails/month) are plenty.
+
+3. **Send a test** — the paper-plane/"send test email" button on the same
+   settings screen. If the test lands in your inbox, you're done. If it
+   errors, the message names the problem (wrong password, blocked port —
+   some office networks block 25 but allow 587).
+
+Also check **Settings → Application → Application URL** is the address
+crews actually use (e.g. `https://trenchnote.example.com`) — it's used to
+build the link in the email.
+
+### Step 2 — say who gets notified, per location
+
+Admin UI → Collections → **locations** → edit a jobsite → set
+**notify_email** to the PM or superintendent for that site. Leave it
+blank for locations where nobody needs a ping (the yard, the shop).
+One address per location; a distribution list (e.g.
+`bearcreek-team@yourcompany.com`) works fine if more people should see it.
+
+That's it. The email fires when a move's **from** location has a notify
+email and the move has a real destination — deliveries arriving on site
+and bulk material consumed *on* the site don't count as leaving it.
+
+**Good to know:**
+
+- Every attempt is in Admin UI → **Logs** (search "TrenchNote notify"):
+  sent, skipped (no SMTP), or failed and why. A failed email never blocks
+  or fails the move itself.
+- If mail settings point at a server that's down, moves still succeed —
+  but each notified move waits on the mail attempt timing out, which can
+  make scans feel slow. If crews report sluggish moves and the log is
+  full of "off-site email failed", fix or disable SMTP.
+
 ## Updating
 
 ```sh
