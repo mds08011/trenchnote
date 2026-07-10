@@ -257,6 +257,13 @@ Two files, no dependencies, no build step:
   problems with 400 on creates; auth must be checked separately. Failures
   park visibly (red badge, human-tap discard); nothing is silently dropped.
 
+  Since ADR 0012 the queue holds two entry kinds: movements (entries with
+  no `kind`, the original shape — old pending entries keep working) and
+  `kind: 'reading'` meter readings. Readings replay as **multipart** form
+  data because the gauge photo rides along — IndexedDB stores the `File`
+  as a Blob natively, no base64 games. Same pre-generated-id idempotency,
+  same FIFO order, so a reading queued behind its movement lands after it.
+
 Conflict stance in one line: the ledger's order is arrival order, the
 cache converges to the latest entry, bulk sums converge under any
 interleaving, and a from/to mismatch in the history is the honest record

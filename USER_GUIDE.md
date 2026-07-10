@@ -34,6 +34,29 @@ tap it. Same page.
 your camera — point it at the next tag and it opens straight away. (First
 time, your browser asks to use the camera — allow it.)
 
+## Hour meters and odometers
+
+Some equipment pages — generators, lifts, trucks — show an extra box in
+the move form: **"Hour meter reading?"** (or "Odometer reading?").
+
+- **You can always skip it.** Leave it blank and the move works exactly
+  like it always has. Nobody's move gets held up by a gauge.
+- **Got ten seconds?** Glance at the gauge, punch in the number (the
+  keypad comes up), and tap 📷 if you want to snap the gauge itself —
+  that photo is gold at billing time. Then hit MOVE HERE like normal.
+- **Month-end walkdown, nothing's moving?** Open the equipment page and
+  tap **"Record a reading (no move)"**. Number, optional photo, save.
+
+If the number you enter is *smaller* than the last one on record, the app
+still saves it — it just flags it in the list. Fat-fingered it? Enter the
+right number as a new reading; the flag on the old one tells the office
+which entry to ignore. (Same rule as moves: never fix an old entry, add
+a correct one.)
+
+Under the big location box you may also see **"Charging to job …"** —
+that's the job number this site's equipment time is billed to. If gear is
+sitting on a job it shouldn't be billed to, that line is the tell.
+
 ## Walking the yard (inventory check)
 
 Doing a walk-through to see what's actually on site? Open **📷 Scan** and
@@ -141,6 +164,8 @@ TrenchNote keeps working with zero bars:
   it sends itself (or tap the tag to send it now). Don't clear the browser
   or sign out while that tag is showing — that data hasn't reached the
   office yet.
+- **Meter readings work offline too** — photo and all. They ride the same
+  ⏳ queue as moves and send themselves when signal returns.
 - If the tag turns **red**, one of your saved moves couldn't be accepted —
   tap it, read why, and check with your PM before discarding anything.
 

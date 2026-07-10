@@ -65,7 +65,7 @@ const TN = {
     if (window.TNSync) {
       const waiting = (await TNSync.qAll()).length;
       if (waiting && !confirm(
-        waiting + ' unsynced move(s) are saved on this phone. They stay ' +
+        waiting + ' unsynced record(s) are saved on this phone. They stay ' +
         'saved, but cannot sync until someone signs in again. Sign out anyway?')) {
         return;
       }

@@ -171,7 +171,7 @@
           <div class="group-sub" x-show="g.job_code || g.notify_email">
             <span class="job" x-show="g.job_code" x-text="'Job ' + g.job_code"></span>
             <span x-show="g.job_code && g.notify_email"> · </span>
-            <span x-show="g.notify_email" x-text="'moves off-site notify ' + g.notify_email"></span>
+            <span x-show="g.notify_email" x-text="'off-site moves → ' + g.notify_email"></span>
           </div>
           <!-- Each row is a link to the same page a QR scan opens -->
           <template x-for="a in g.assets" :key="a.id">

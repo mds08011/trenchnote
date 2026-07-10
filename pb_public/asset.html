@@ -105,13 +105,53 @@
     font-size: 12px; font-weight: 700; letter-spacing: .14em;
     text-transform: uppercase; color: var(--steel); margin-bottom: 10px;
   }
-  select, input[type=text] {
+  select, input[type=text], input[type=number] {
     width: 100%; min-height: 56px;
     font: inherit; font-size: 17px;
     padding: 12px; margin-bottom: 10px;
     border: 2px solid var(--ink); border-radius: 0;
     background: var(--paper); color: var(--ink);
   }
+
+  /* ---- Meter reading capture (ADR 0012) ---------------------------
+     One optional row in the move flow, glove-sized: numeric input +
+     a camera button for the gauge photo. Skippable at zero cost. */
+  .meter-row { display: flex; gap: 10px; }
+  .meter-row input { flex: 1; }
+  .meter-row .cam {
+    flex: 0 0 56px; min-height: 56px; margin-bottom: 10px;
+    font-size: 22px; line-height: 1;
+    background: var(--paper); border: 2px solid var(--ink);
+    cursor: pointer; color: var(--ink);
+  }
+  .meter-row .cam.has { border-color: var(--go); color: var(--go); }
+  /* Amber, not red: a lower-than-previous reading is a heads-up
+     (replaced meter or a typo to correct), never a block. */
+  .warn {
+    margin-top: 14px; padding: 14px;
+    background: #fff4e5; color: #8a5a00; border: 2px solid #8a5a00;
+    font-weight: 600; font-size: 14px;
+  }
+  .meter { margin-top: 26px; }
+  .meter h2 {
+    font-size: 12px; font-weight: 700; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--steel); margin-bottom: 10px;
+  }
+  .rdg {
+    display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+    padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px;
+  }
+  .rdg .val {
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+    font-weight: 700; font-size: 16px;
+  }
+  .rdg .who { color: var(--steel); font-size: 13px; }
+  .rdg .low {
+    color: #8a5a00; border: 1.5px solid currentColor;
+    font-size: 10px; font-weight: 700; letter-spacing: .08em;
+    padding: 0 4px; text-transform: uppercase;
+  }
+  .rdg a { color: var(--safety); font-size: 13px; }
   button.go {
     width: 100%; min-height: 60px;
     font: inherit; font-size: 18px; font-weight: 800;
@@ -210,6 +250,10 @@
       <p class="meta" x-show="asset.serial_number">
         Serial: <span x-text="asset.serial_number"></span>
       </p>
+      <!-- Custodianship (ADR 0012): trucks/vehicles belong to a person -->
+      <p class="meta" x-show="asset.assigned_to">
+        Assigned to: <span x-text="asset.assigned_to"></span>
+      </p>
       <span class="badge"
             :class="asset.ownership === 'rented' ? 'rented' : 'owned'"
             x-text="asset.ownership === 'rented'
@@ -226,6 +270,11 @@
         <div class="loc" x-text="asset.expand?.current_location?.name || 'UNASSIGNED'"></div>
         <div class="dur" x-show="daysHere !== null">
           Here for <strong x-text="daysHere === 0 ? 'less than a day' : daysHere + (daysHere === 1 ? ' day' : ' days')"></strong>
+        </div>
+        <!-- Current job is DERIVED: the current location's job_code
+             (ADR 0012). No stored copy to drift. -->
+        <div class="dur" x-show="asset.expand?.current_location?.job_code">
+          Charging to job <strong x-text="asset.expand?.current_location?.job_code"></strong>
         </div>
       </div>
 
@@ -257,11 +306,35 @@
           </template>
         </select>
         <input type="text" x-model="movedBy" placeholder="Your name (optional)">
+
+        <!-- Optional meter reading at the scan moment (ADR 0012). Shown
+             only when the item catalog says this kind of thing has a
+             gauge (items.meter). Leaving it blank changes nothing about
+             the move — same taps, same request, same result. -->
+        <template x-if="meterType">
+          <div class="meter-row">
+            <input type="number" inputmode="decimal" min="0" step="any"
+                   x-model="readingValue"
+                   :placeholder="meterLabel + ' reading? (optional)'"
+                   :aria-label="meterLabel + ' reading (optional)'">
+            <button type="button" class="cam" :class="{ has: readingPhoto }"
+                    @click="$refs.gaugePhoto.click()"
+                    :aria-label="readingPhoto ? 'Gauge photo attached' : 'Photo of the gauge'"
+                    x-text="readingPhoto ? '📷✓' : '📷'"></button>
+            <input type="file" accept="image/*" capture="environment" hidden
+                   x-ref="gaugePhoto"
+                   @change="readingPhoto = $event.target.files[0] || null">
+          </div>
+        </template>
+
         <button class="go" :disabled="!moveTo || busy" @click="move()"
                 x-text="busy ? 'Saving…' : 'Move here'"></button>
 
         <div class="flash" x-show="flash" x-text="flash"></div>
         <div class="error" x-show="moveError" x-text="moveError"></div>
+        <!-- Reading outcome is separate from the move outcome: the move
+             already succeeded by the time this can appear. -->
+        <div class="warn" x-show="readingNote" x-text="readingNote"></div>
 
         <!-- After a move, offer to close out open claims. No guesswork:
              the person who just handed it over says which claim this
@@ -277,6 +350,55 @@
           </div>
         </template>
       </div>
+
+      <!-- Meter readings (ADR 0012): derived latest-first history plus a
+           standalone record action for month-end walkdowns that don't
+           involve a move. A reading lower than its predecessor is legal
+           (replaced meter / typo) and FLAGGED at render time by comparing
+           neighbors — visibility, never a block. -->
+      <template x-if="meterType">
+        <div class="meter">
+          <h2 x-text="meterLabel + ' readings'"></h2>
+          <template x-for="(r, i) in readings" :key="r.id">
+            <div class="rdg">
+              <span class="val" x-text="fmtVal(r.value)"></span>
+              <span class="low" x-show="isLow(i)">lower than previous</span>
+              <span class="who"
+                    x-text="fmtWhen(r.created) + (r.recorded_by && r.recorded_by !== 'unspecified' ? ' · ' + r.recorded_by : '')"></span>
+              <a x-show="r.photo" :href="gaugeUrl(r)" target="_blank">gauge photo</a>
+            </div>
+          </template>
+          <p class="meta" x-show="!readings.length" style="margin-bottom:10px">No readings yet.</p>
+
+          <template x-if="!showRecord">
+            <button class="resv-toggle" @click="showRecord = true"
+                    style="margin-top:10px">➕ Record a reading (no move) →</button>
+          </template>
+          <template x-if="showRecord">
+            <div style="margin-top:10px">
+              <div class="meter-row">
+                <input type="number" inputmode="decimal" min="0" step="any"
+                       x-model="soloValue"
+                       :placeholder="meterLabel + ' reading'"
+                       :aria-label="meterLabel + ' reading'">
+                <button type="button" class="cam" :class="{ has: soloPhoto }"
+                        @click="$refs.soloGauge.click()"
+                        :aria-label="soloPhoto ? 'Gauge photo attached' : 'Photo of the gauge'"
+                        x-text="soloPhoto ? '📷✓' : '📷'"></button>
+                <input type="file" accept="image/*" capture="environment" hidden
+                       x-ref="soloGauge"
+                       @change="soloPhoto = $event.target.files[0] || null">
+              </div>
+              <input type="text" x-model="movedBy" placeholder="Your name (optional)">
+              <button class="go secondary" :disabled="!(Number(soloValue) > 0) || busy"
+                      @click="recordReading()"
+                      x-text="busy ? 'Saving…' : 'Save reading'"></button>
+              <div class="flash" x-show="soloFlash" x-text="soloFlash"></div>
+              <div class="warn" x-show="soloNote" x-text="soloNote"></div>
+            </div>
+          </template>
+        </div>
+      </template>
 
       <!-- Reserve: collapsed by default to keep the scan page focused
            on the two field questions (where is it / move it) -->
@@ -335,6 +457,17 @@ function assetPage() {
     flash: '',
     moveError: '',
     reservations: [],
+    // Meter readings (ADR 0012). readingValue/-Photo ride along with the
+    // move; soloValue/-Photo belong to the standalone month-end record.
+    readings: [],
+    readingValue: '',
+    readingPhoto: null,
+    readingNote: '',
+    showRecord: false,
+    soloValue: '',
+    soloPhoto: null,
+    soloFlash: '',
+    soloNote: '',
     showReserve: false,
     showFulfill: false,
     resvBy: localStorage.getItem('tn_name') || '',
@@ -347,6 +480,38 @@ function assetPage() {
     // Destinations = every location except the current one
     get destinations() {
       return this.locations.filter(l => l.id !== this.asset?.current_location);
+    },
+
+    // Whether this KIND of thing has a gauge comes from the catalog
+    // (items.meter, ADR 0012) — already expanded in the asset fetch, so
+    // deciding whether to show the reading field costs zero requests.
+    get meterType() {
+      return this.asset?.expand?.item?.meter || '';
+    },
+    get meterLabel() {
+      return this.meterType === 'odometer' ? 'Odometer' : 'Hour meter';
+    },
+
+    // The lower-than-previous flag is DERIVED at render time by comparing
+    // neighbors (readings arrive newest-first). Never stored: a stored
+    // flag could disagree with the records it summarizes.
+    isLow(i) {
+      const next = this.readings[i + 1];
+      return !!next && this.readings[i].value < next.value;
+    },
+
+    fmtVal(v) {
+      return Number(v).toLocaleString();
+    },
+
+    fmtWhen(pbDate) {
+      return new Date(pbDate).toLocaleDateString(undefined,
+        { month: 'short', day: 'numeric' });
+    },
+
+    gaugeUrl(r) {
+      // PocketBase file URL pattern: /api/files/{collection}/{recordId}/{filename}
+      return `${PB}/api/files/readings/${r.id}/${r.photo}`;
     },
 
     // A claim is active until a human closes it (fulfilled or cancelled).
@@ -428,6 +593,18 @@ function assetPage() {
         );
         this.reservations = (await rRes.json()).items;
 
+        // 5. Meter readings, newest first — ONLY for metered items, so
+        //    unmetered gear (most of it) pays nothing for the feature.
+        //    Six records: the latest plus enough history to render the
+        //    lower-than-previous flags meaningfully.
+        if (this.meterType) {
+          const rdFilter = encodeURIComponent(`asset='${this.asset.id}'`);
+          const rdRes = await TN.fetch(
+            `${PB}/api/collections/readings/records?filter=(${rdFilter})&sort=-created&perPage=6`
+          );
+          this.readings = (await rdRes.json()).items;
+        }
+
         this.state = 'ready';
       } catch (err) {
         this.state = 'error';
@@ -439,6 +616,7 @@ function assetPage() {
       this.busy = true;
       this.flash = '';
       this.moveError = '';
+      this.readingNote = '';
       if (this.movedBy) localStorage.setItem('tn_name', this.movedBy);
 
       const dest = this.locations.find(l => l.id === this.moveTo);
@@ -478,6 +656,17 @@ function assetPage() {
         this.flash = '✓ Moved to ' + (dest ? dest.name : 'new location');
         this.moveTo = '';
         this.showFulfill = true;   // offer to close out open claims below
+
+        // The move is already committed — the optional reading is a
+        // separate best-effort write with its own outcome line. A reading
+        // problem can never un-succeed the move.
+        if (this.readingValue !== '') {
+          const r = await this.submitReading(Number(this.readingValue), this.readingPhoto);
+          if (r.ok) this.flash += r.queued ? ' · reading saved on this phone' : ' · reading saved';
+          this.readingNote = r.warn;
+          if (r.ok) { this.readingValue = ''; this.readingPhoto = null; }
+        }
+
         await this.load();   // refresh the plate
       } catch (err) {
         if (TNSync.isNetworkError(err)) {
@@ -492,6 +681,16 @@ function assetPage() {
           this.daysHere = 0;
           this.flash = '✓ Saved on this phone — will sync when signal returns';
           this.moveTo = '';
+          // The reading queues right behind its movement (FIFO), photo
+          // and all — IndexedDB stores the file as a Blob.
+          if (this.readingValue !== '' && Number(this.readingValue) > 0) {
+            await TNSync.enqueueReading(
+              this.buildReadingBody(Number(this.readingValue)), this.readingPhoto,
+              this.code + ' ' + this.meterLabel.toLowerCase() + ' ' + this.readingValue);
+            this.flash += ' (move + reading)';
+            this.readingValue = '';
+            this.readingPhoto = null;
+          }
         } else {
           this.moveError = 'Move failed: ' + err.message +
             '. Check the API rules on "movements" (Create) and "assets" (Update).';
@@ -499,6 +698,81 @@ function assetPage() {
       } finally {
         this.busy = false;
       }
+    },
+
+    // Reading bodies get a pre-generated id like movements do, so the
+    // same body can be sent now or replayed from the offline queue
+    // without ever doubling a ledger entry (ADR 0008 pattern).
+    buildReadingBody(v) {
+      return {
+        id: TNSync.genId(),
+        asset: this.asset.id,
+        value: v,
+        // Copied from items.meter at capture time so the record stays
+        // self-contained even if the catalog is re-flagged later.
+        reading_type: this.meterType,
+        recorded_by: this.movedBy || 'unspecified'
+      };
+    },
+
+    // Shared by the move flow and the standalone record button.
+    // Returns { ok, queued, warn }: ok = persisted or safely queued;
+    // warn = the amber heads-up line (lower-than-previous, or why the
+    // reading didn't save). Never throws.
+    async submitReading(v, photo) {
+      if (!(v > 0)) {
+        return { ok: false, queued: false,
+                 warn: '⚠ Reading not saved — enter the number on the gauge (greater than zero).' };
+      }
+      const prev = this.readings[0];   // newest-first
+      const body = this.buildReadingBody(v);
+      // Lower than the last reading: legal (meters get replaced, typos
+      // happen more) — save it anyway, flag it, never block.
+      const lowWarn = prev && v < prev.value
+        ? '⚠ Heads-up: ' + this.fmtVal(v) + ' is LOWER than the last reading (' +
+          this.fmtVal(prev.value) + '). It saved and is flagged in the history — ' +
+          'if it was a typo, enter a corrected reading.'
+        : '';
+      try {
+        // Multipart instead of JSON because the gauge photo rides along;
+        // PocketBase casts the string form values to the schema types.
+        const fd = new FormData();
+        for (const k in body) fd.append(k, body[k]);
+        if (photo) fd.append('photo', photo, 'gauge.jpg');
+        const res = await TN.fetch(`${PB}/api/collections/readings/records`, {
+          method: 'POST',
+          body: fd
+        });
+        if (!res.ok) throw new Error('reading rejected (' + res.status + ')');
+        return { ok: true, queued: false, warn: lowWarn };
+      } catch (err) {
+        if (TNSync.isNetworkError(err)) {
+          await TNSync.enqueueReading(body, photo,
+            this.code + ' ' + this.meterLabel.toLowerCase() + ' ' + this.fmtVal(v));
+          return { ok: true, queued: true, warn: lowWarn };
+        }
+        return { ok: false, queued: false,
+                 warn: '⚠ Reading NOT saved: ' + err.message };
+      }
+    },
+
+    // Standalone reading for month-end walkdowns — no move involved.
+    async recordReading() {
+      this.busy = true;
+      this.soloFlash = '';
+      this.soloNote = '';
+      if (this.movedBy) localStorage.setItem('tn_name', this.movedBy);
+      const r = await this.submitReading(Number(this.soloValue), this.soloPhoto);
+      this.soloNote = r.warn;
+      if (r.ok) {
+        this.soloFlash = r.queued
+          ? '✓ Saved on this phone — will sync when signal returns'
+          : '✓ Reading saved';
+        this.soloValue = '';
+        this.soloPhoto = null;
+        if (!r.queued) await this.load();   // show it in the history above
+      }
+      this.busy = false;
     },
 
     async reserve() {

@@ -66,11 +66,34 @@ const TNSync = {
   // request body for POST /api/collections/movements/records; assetPatch
   // (asset moves only) is the current_location cache update that must
   // follow it. `label` is what a human sees on the badge/failure list.
+  // (Entries with no `kind` are movements — the shape that predates
+  // readings; the sync loop treats missing kind as 'movement'.)
   async enqueue(movement, assetPatch, label) {
-    movement.id = this.genId();
+    // Keep a caller-supplied id: if the live POST died AFTER the server
+    // committed, replaying under the SAME id is what makes the retry
+    // idempotent. Only mint one for callers that didn't.
+    movement.id = movement.id || this.genId();
     await this.qAdd({
       movement,
       assetPatch: assetPatch || null,   // { assetId, toLocation } or null for bulk
+      label,
+      queuedAt: new Date().toISOString(),
+      status: 'pending',
+      error: '',
+    });
+    await this.renderBadge();
+  },
+
+  // A meter reading captured with no signal (ADR 0012). Same idempotency
+  // contract as movements (pre-generated id); the gauge photo rides
+  // along as a Blob — IndexedDB stores files natively, and the replay
+  // sends multipart form data.
+  async enqueueReading(reading, photo, label) {
+    reading.id = reading.id || this.genId();
+    await this.qAdd({
+      kind: 'reading',
+      reading,
+      photo: photo || null,
       label,
       queuedAt: new Date().toISOString(),
       status: 'pending',
@@ -119,14 +142,30 @@ const TNSync = {
 
       for (const entry of entries) {
         try {
-          const res = await fetch(window.location.origin + '/api/collections/movements/records', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': localStorage.getItem('tn_token')
-            },
-            body: JSON.stringify(entry.movement)
-          });
+          let res;
+          if (entry.kind === 'reading') {
+            // Readings replay as multipart so the queued gauge photo
+            // (stored as a Blob) can ride along; PocketBase casts the
+            // string form values to the schema types.
+            const fd = new FormData();
+            for (const k in entry.reading) fd.append(k, entry.reading[k]);
+            if (entry.photo) fd.append('photo', entry.photo, 'gauge.jpg');
+            res = await fetch(window.location.origin + '/api/collections/readings/records', {
+              method: 'POST',
+              headers: { 'Authorization': localStorage.getItem('tn_token') },
+              body: fd
+            });
+          } else {
+            // No kind = a movement (the original entry shape)
+            res = await fetch(window.location.origin + '/api/collections/movements/records', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': localStorage.getItem('tn_token')
+              },
+              body: JSON.stringify(entry.movement)
+            });
+          }
 
           let ok = res.ok;
           if (!ok && res.status === 400) {
@@ -223,7 +262,7 @@ const TNSync = {
       badge.textContent = '… syncing';
       badge.style.display = 'block';
     } else if (this._authPaused && pending) {
-      badge.textContent = '⚠ sign in to sync ' + pending + (pending === 1 ? ' move' : ' moves');
+      badge.textContent = '⚠ sign in to sync ' + pending + (pending === 1 ? ' record' : ' records');
       badge.style.display = 'block';
     } else if (failed) {
       badge.textContent = '⚠ ' + failed + ' failed · tap to review' + (pending ? ' (' + pending + ' waiting)' : '');
