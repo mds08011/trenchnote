@@ -1,6 +1,9 @@
 # ADR 0011 — Core/premium boundary: premium is a sidecar on the public REST API
 
 **Status:** accepted · **Date:** 2026-07-09
+**Amended:** 2026-07-09 — premium repo renamed `trenchnote-lookahead` (the
+Lookahead brand now covers the premium tier of both sibling products).
+Naming reference only; the boundary is unchanged.
 **Provenance:** ported 2026-07-09 from `trenchnote-alt` (ADR 0005 there);
 renumbered because this repo's 0005 is the consumption ADR. Updated on
 port: the Phase-2 auth lockdown this ADR flagged as an open dependency has
@@ -71,7 +74,7 @@ that changes REST behavior is a breaking change.
 - **Core:** this repository, AGPL, complete and self-sufficient. Nothing in
   it references, downloads, bundles, or checks for premium.
 - **Premium:** a separate **private** repository (currently
-  `trenchnote-watchdog`), commercially licensed, with its own docs, deploy
+  `trenchnote-lookahead`), commercially licensed, with its own docs, deploy
   story, and release cycle. It depends on the core's *published API
   contract*, never on core internals — so the two version independently.
 - Schema changes premium wants are proposed as *core* migrations with their
@@ -89,7 +92,7 @@ that changes REST behavior is a breaking change.
   permissions any authenticated client gets. Premium never holds a
   superuser credential.
 - Operational recommendation: give the sidecar its *own* user record
-  (e.g. `watchdog@…`) rather than reusing a crew's shared field account, so
+  (e.g. `lookahead@…`) rather than reusing a crew's shared field account, so
   its access can be revoked by changing one password without re-logging
   every field phone — the same lost-phone playbook as ADR 0004.
 - Known PocketBase behavior that clients must handle (see the developer
