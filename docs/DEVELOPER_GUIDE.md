@@ -278,6 +278,28 @@ laptop's LAN IP.
 Running it on a real box (trailer Pi, VPS), plus backups and restore, is
 covered in [DEPLOY.md](DEPLOY.md).
 
+### Seeding a demo instance
+
+`scripts/seed_demo.sh` fills a local instance with realistic fake data —
+6 locations, 25 assets (some rented), 10 bulk materials, ~80 movements in
+all three bulk shapes, reservations in every lifecycle state — so sidecar
+and premium development runs against the real API instead of mock JSON.
+It writes **only through the public API contract** ([API.md](API.md)),
+authenticated as an ordinary user, exactly as a sidecar would (ADR 0011) —
+which makes it a living contract test: if the seed script breaks, the
+contract moved.
+
+```sh
+# once: create a user in the admin UI (collections -> users), then
+TN_EMAIL=demo@example.com TN_PASSWORD=... ./scripts/seed_demo.sh
+```
+
+It aborts rather than duplicating if the sentinel location ("Millbrook
+Staging Yard") already exists — reseed against a fresh `pb_data/`. Known
+limitation, by design: the API cannot backdate `created`, so all seeded
+movements are stamped "now"; history lives in the sequences and the
+reservation dates.
+
 The pages have no test suite; the verification workflow is exercising the
 API with `curl` (create → move → check the ledger) and the pages in a
 browser. Keep it that way until there's a reason not to — the whole frontend

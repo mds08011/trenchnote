@@ -71,6 +71,10 @@ Then:
    your location turns it into an inventory walk that flags anything the
    ledger has wrong, with a one-tap fix.
 
+Developing against the API, or want a busy-looking demo?
+`scripts/seed_demo.sh` fills a local instance with realistic fake data
+through the public API (see the developer guide).
+
 Bulk materials (pipe supports, fittings — items with `tracking_mode=bulk`)
 have no individual tags: open them from the dashboard's **Materials** section
 to log deliveries and moves as quantities. Stock per location is always
