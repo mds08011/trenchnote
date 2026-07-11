@@ -91,6 +91,14 @@ index** — one label, one asset, enforced by SQLite). Rentals are not special:
 vehicles belong to a person even though they rarely trade between jobs the
 way shared tools do. Free text like `moved_by` — crews don't have accounts.
 
+`on_rent_date` / `off_rent_date` (date, optional — ADR 0015) are empty on
+owned gear. Dates are a non-commercial fact about the asset, so they live
+in core; the *rate* does not (that's premium data). Stored date-only at
+UTC midnight like the reservations dates — format with `timeZone: 'UTC'`.
+asset.html shows an off-rent countdown (amber within a week, red once
+overdue) on rented assets; the dates are set office-side in the admin UI,
+like `vendor`/`po_number`.
+
 ### movements — the append-only ledger, the source of truth
 
 One collection holds both kinds of moves, distinguished by which fields are
