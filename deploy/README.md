@@ -185,14 +185,20 @@ VPS expendable" layer from ADR 0006.
 
 ## Updating later
 
+For an already-live box, follow **[UPDATE.md](UPDATE.md)** — the backup →
+pull → restart → verify checklist. The short version:
+
 ```sh
 cd /opt/trenchnote/app
 sudo -u trenchnote git pull
 sudo systemctl restart trenchnote          # pending migrations auto-apply
+sh deploy/verify-live.sh https://app.trenchnote.com   # from your laptop's checkout
 ```
 
-Take a backup before any PocketBase *binary* upgrade, and rehearse it on the Pi
-first (Phase 6). Day-two operations live in [RUNBOOK.md](../docs/RUNBOOK.md).
+**Back up first** (Admin UI → Settings → Backups) — a migration runs against the
+real ledger on restart. Take a backup before any PocketBase *binary* upgrade too,
+and rehearse on the Pi first (Phase 6). Day-two ops live in
+[RUNBOOK.md](../docs/RUNBOOK.md).
 
 ## If cutover goes wrong
 
