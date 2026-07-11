@@ -110,6 +110,13 @@ reaches the yard). If crews are on cell data only, you need Option B.
 For crews scanning over cell data from twelve different sites, TrenchNote
 needs a real domain and HTTPS.
 
+> **In a hurry? Use the runbook.** [`deploy/`](../deploy/) has an ordered,
+> copy-paste VPS checklist ([deploy/README.md](../deploy/README.md)) plus
+> ready-to-use config files — the `trenchnote.service` unit, the `Caddyfile`,
+> a `litestream.yml` for the Pi replica, and a `preflight.sh` that proves a
+> fresh checkout applies every migration before you cut over. This section
+> and the ones below remain the *why* behind each step.
+
 Any $5-tier VPS (1 CPU, 512 MB) is more than enough. Setup is Option A plus
 a reverse proxy for HTTPS. [Caddy](https://caddyserver.com) is the boring
 choice because it fetches and renews certificates automatically:

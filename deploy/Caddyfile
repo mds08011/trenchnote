@@ -1,0 +1,13 @@
+# TrenchNote reverse proxy — the entire HTTPS front door.
+# Caddy fetches and renews the TLS certificate automatically (Let's Encrypt),
+# so there is nothing else to configure for HTTPS.
+#
+# >>> FILL IN: replace trenchnote.example.com with your real domain, and make
+# >>> sure that domain's DNS A/AAAA record points at this VPS's public IP
+# >>> BEFORE reloading Caddy (cert issuance fails otherwise).
+#
+# Install: put this at /etc/caddy/Caddyfile, then `sudo systemctl reload caddy`.
+
+trenchnote.example.com {
+	reverse_proxy 127.0.0.1:8090
+}

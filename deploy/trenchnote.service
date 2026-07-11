@@ -1,0 +1,26 @@
+[Unit]
+# TrenchNote (PocketBase) — VPS variant: binds to localhost, fronted by Caddy.
+# For a LAN-only box (no TLS) change the ExecStart --http to 0.0.0.0:8090
+# and open the port in ufw instead. See docs/DEPLOY.md Option A vs B.
+Description=TrenchNote (PocketBase)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=trenchnote
+WorkingDirectory=/opt/trenchnote/app
+# localhost only — Caddy is the sole front door (TLS terminates there).
+ExecStart=/opt/trenchnote/app/pocketbase serve --http=127.0.0.1:8090
+Restart=on-failure
+RestartSec=3
+
+# --- Hardening (optional but cheap; the app account is not for humans) ---
+NoNewPrivileges=true
+ProtectSystem=full
+# pb_data/ lives under WorkingDirectory and must stay writable:
+ReadWritePaths=/opt/trenchnote/app/pb_data
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

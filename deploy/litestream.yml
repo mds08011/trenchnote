@@ -1,0 +1,28 @@
+# Litestream — continuous SQLite replication from the VPS to the trailer Pi
+# (ADR 0006 reference topology). Losing the VPS costs seconds of ledger, not
+# a day. This is OPTIONAL and belongs to Phase 6 of the runbook — stand up
+# the VPS and prove it works first.
+#
+# Install: put this at /etc/litestream.yml on the VPS, then enable the
+# litestream systemd service (`sudo systemctl enable --now litestream`).
+# Confirm with `litestream replicas` — it should list the Pi.
+#
+# >>> FILL IN:
+# >>>   100.x.y.z        the Pi's Tailscale address (see runbook Phase 6)
+# >>>   key-path         the VPS's SSH private key that can log in to the Pi
+# >>> The Pi must accept key-only SSH for user `trenchnote` and have the
+# >>> destination directory (/home/trenchnote/replica) writable by it.
+
+dbs:
+  # data.db is the whole ledger — the one that matters. auxiliary.db is just
+  # request logs and is deliberately NOT replicated.
+  - path: /opt/trenchnote/app/pb_data/data.db
+    replicas:
+      - type: sftp
+        host: 100.x.y.z:22          # the Pi's Tailscale address
+        user: trenchnote
+        key-path: /opt/trenchnote/.ssh/id_ed25519
+        path: /home/trenchnote/replica/data.db
+
+# Photos live OUTSIDE SQLite (pb_data/storage/), so Litestream can't carry
+# them — the runbook adds an hourly rsync of storage/ to the Pi alongside this.
