@@ -159,6 +159,20 @@
   }
   .rdg a { color: var(--safety); font-size: 13px; }
 
+  /* Move history — this asset's journey through the ledger */
+  .hist { margin-top: 26px; }
+  .hist h2 {
+    font-size: 12px; font-weight: 700; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--steel); margin-bottom: 10px;
+  }
+  .hist .row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line);
+    font-size: 14px;
+  }
+  .hist .route strong { font-weight: 800; }
+  .hist .meta { color: var(--steel); font-size: 13px; white-space: nowrap; }
+
   /* ---- Inspections (ADR 0014) --------------------------------------
      The compliance badge. RED outranks everything on this page — gear
      you must not use has no business leading with a move button — so
@@ -558,6 +572,33 @@
         </template>
       </div>
 
+      <!-- Move history: this asset's journey through the append-only
+           ledger, collapsed by default to keep the scan page focused on
+           the current state and the actions. -->
+      <template x-if="moveHistory.length">
+        <div class="hist">
+          <template x-if="!showHistory">
+            <button class="resv-toggle" @click="showHistory = true"
+                    style="margin-top:10px">🕑 Move history →</button>
+          </template>
+          <template x-if="showHistory">
+            <div>
+              <h2>Move history</h2>
+              <template x-for="m in moveHistory" :key="m.id">
+                <div class="row">
+                  <span class="route">
+                    <span x-text="m.expand?.from_location?.name || 'outside'"></span>
+                    → <strong x-text="m.expand?.to_location?.name || '?'"></strong>
+                  </span>
+                  <span class="meta"
+                        x-text="fmtWhen(m.created) + (m.moved_by && m.moved_by !== 'unspecified' ? ' · ' + m.moved_by : '')"></span>
+                </div>
+              </template>
+            </div>
+          </template>
+        </div>
+      </template>
+
       <!-- Meter readings (ADR 0012): derived latest-first history plus a
            standalone record action for month-end walkdowns that don't
            involve a move. A reading lower than its predecessor is legal
@@ -664,6 +705,9 @@ function assetPage() {
     flash: '',
     moveError: '',
     reservations: [],
+    // This asset's movement ledger — the journey (collapsed by default).
+    moveHistory: [],
+    showHistory: false,
     // Meter readings (ADR 0012). readingValue/-Photo ride along with the
     // move; soloValue/-Photo belong to the standalone month-end record.
     readings: [],
@@ -820,14 +864,17 @@ function assetPage() {
         const locRes = await TN.fetch(`${PB}/api/collections/locations/records?sort=name&perPage=200`);
         this.locations = (await locRes.json()).items;
 
-        // 3. "How long has it been here" comes from the ledger: time since
-        //    this asset's latest movement (sort=-created, take one). Falls
-        //    back to the asset record's created date if it has never moved.
+        // 3. This asset's recent movements, newest-first, with both
+        //    locations expanded. items[0] gives "how long it's been here"
+        //    (time since the latest move, falling back to the asset's own
+        //    created date if it has never moved); the whole list feeds the
+        //    collapsible move-history section below.
         const mvFilter = encodeURIComponent(`asset='${this.asset.id}'`);
         const mvRes = await TN.fetch(
-          `${PB}/api/collections/movements/records?filter=(${mvFilter})&sort=-created&perPage=1`
+          `${PB}/api/collections/movements/records?filter=(${mvFilter})&sort=-created&perPage=15&expand=from_location,to_location`
         );
-        const mv = (await mvRes.json()).items[0];
+        this.moveHistory = (await mvRes.json()).items;
+        const mv = this.moveHistory[0];
         const since = new Date(mv ? mv.created : this.asset.created);
         this.daysHere = Math.floor((Date.now() - since) / 86400000);
 

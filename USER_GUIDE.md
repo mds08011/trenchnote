@@ -137,6 +137,8 @@ tags in five minutes is normal.
 - A brown **SPOKEN FOR** box means someone has dibs on this for an upcoming
   date. You can still move it — but you're taking it from that person, so
   call them first. Their name is in the box.
+- Tap **🕑 Move history** to see everywhere this thing has been — each hop,
+  who moved it, and when. Handy for "wasn't this at Northside last week?"
 
 ## Calling dibs (reservations)
 
