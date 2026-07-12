@@ -207,6 +207,5 @@ A desired invariant becomes confirmed only after:
 - [Current state](current-state.md)
 - [Product boundary](product-boundary.md)
 - [Domain model](domain-model.md)
-
-Architecture-status and ecosystem-contract documents are planned and are not
-yet authoritative.
+- [Architecture status](architecture-status.md)
+- [Proposed ecosystem contracts](ecosystem-contracts.md)

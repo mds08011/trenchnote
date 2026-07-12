@@ -232,13 +232,14 @@ coordination. They are not requests to add TrenchNote collections.
 | Handoff manifest | Bounded package of references and evidence transferred between contexts | Producing product; receipt recorded by consumer |
 | Import provenance | Source, version, time, actor, and original identifiers for imported data | Consuming product |
 
-A dedicated ecosystem-contract draft is the next documentation-baseline task.
-No application code should conform to that future draft until its open
-questions are resolved and an ADR accepts a contract version.
+See [ecosystem-contracts.md](ecosystem-contracts.md) for the draft vocabulary.
+No application code should conform to that draft until its open questions are
+resolved and an ADR accepts a contract version.
 
 ## Related documents
 
 - [Current state](current-state.md)
 - [Product boundary](product-boundary.md)
 - [Invariants](invariants.md)
+- [Proposed ecosystem contracts](ecosystem-contracts.md)
 - [Public API contract](API.md)

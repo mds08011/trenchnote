@@ -125,8 +125,8 @@ notice, cutover phases, and restoration.
 
 **PROPOSED:** LineCheck is the better long-term bounded-context owner because
 service cutover is part of linear-infrastructure acceptance. No migration is
-approved by this document. A dedicated overlap-and-migrations analysis is the
-next documentation-baseline task.
+approved by this document. See
+[overlap-and-migrations.md](overlap-and-migrations.md).
 
 ## Areas that should not expand further
 
@@ -188,7 +188,6 @@ TrenchNote quietly.
 - [Current state](current-state.md)
 - [Domain model](domain-model.md)
 - [Invariants](invariants.md)
+- [Lifecycle map](lifecycle-map.md)
+- [Overlap and migrations](overlap-and-migrations.md)
 - [ADR 0011 — core/premium boundary](adr/0011-core-premium-extension-boundary.md)
-
-The lifecycle map and overlap/migration analysis are planned and are not yet
-authoritative.
