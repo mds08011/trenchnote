@@ -29,7 +29,7 @@ your work doesn't stall on paperwork.
   regardless of quality.
 - Schema changes ship as migrations in `pb_migrations/`, never as
   hand-edits, and need a short ADR in `docs/adr/`.
-- The five contract collections are a published API surface
+- The eight contract collections are a published API surface
   ([docs/API.md](docs/API.md)) — breaking changes to them need an ADR *and*
   a contract version bump, not just a migration.
 - Anything touching the tag/QR format is a breaking change to physical

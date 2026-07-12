@@ -79,7 +79,7 @@ sudo apt install -y unattended-upgrades
 ```sh
 sudo useradd --system --create-home --home-dir /opt/trenchnote --shell /usr/sbin/nologin trenchnote
 sudo -u trenchnote git clone https://github.com/mds08011/trenchnote.git /opt/trenchnote/app
-sudo -u trenchnote sh -c "cd /opt/trenchnote/app && ./scripts/setup.sh"   # downloads the binary
+sudo -u trenchnote sh -c "cd /opt/trenchnote/app && PB_VERSION=0.39.6 ./scripts/setup.sh"   # tested binary
 ```
 
 **Preflight — prove the checkout works before it's load-bearing:**

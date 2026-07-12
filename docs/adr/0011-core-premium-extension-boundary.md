@@ -167,7 +167,7 @@ whose permission would be needed for any future licensing move. See
   polling. If that ever proves insufficient, the escape hatch is a generic
   **outbound webhook feature built into core** — AGPL, for everyone — not
   in-process hooks.
-- The five contract collections are now harder to refactor: breaking
+- The published contract collections are now harder to refactor: breaking
   changes need an ADR + announced version bump. (Schema changes already
   required ADRs; this adds the compatibility obligation.)
 - Open dependencies remaining at time of port: a CLA-vs-DCO decision is

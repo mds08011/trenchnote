@@ -3,12 +3,12 @@
 **A minimalist, self-hostable ledger for tracking equipment and materials
 across construction job sites.**
 
-Project page: [mds08011.github.io/trenchnote](https://mds08011.github.io/trenchnote/)
+Project page: [trenchnote.com](https://trenchnote.com/)
 
 Tape a QR code to a scissor lift. Anyone who scans it with their phone camera
 sees what it is, where it's supposed to be, and how long it's been there — and
-can log a move in two taps. No app to install, no account for field crews, no
-vendor integrations.
+can log a move in two taps. No app to install; crews sign in once on each phone
+with a shared field account. No vendor integrations.
 
 TrenchNote answers three questions and refuses to be anything else:
 
@@ -17,6 +17,19 @@ TrenchNote answers three questions and refuses to be anything else:
 3. **Who moved it?**
 
 ![The TrenchNote dashboard: assets grouped by location, material totals, upcoming reservations, and the recent-movements ledger](docs/img/dashboard.png)
+
+## Current status
+
+TrenchNote is working field software under active development. The committed
+schema and UI cover the workflows described below, and a public PocketBase
+instance is deployed, but there are no release tags or formal maturity level and
+no automated regression suite yet. The public deployment may lag `main`; see the
+dated [current-state report](docs/current-state.md) before planning an update.
+
+Self-hosters should pin the documented PocketBase version, keep an off-box
+backup, and rehearse restores before using the ledger as the only copy of field
+records. The deployment and rollback procedures are documented and do not
+require containers or a managed service.
 
 It is not an ERP, not a Procore replacement, and not accounting software. It's
 a field-logistics ledger built by a project engineer at a water/wastewater
@@ -53,7 +66,7 @@ use Git Bash).
 ```sh
 git clone https://github.com/mds08011/trenchnote.git
 cd trenchnote
-./scripts/setup.sh     # downloads the PocketBase binary for your OS
+PB_VERSION=0.39.6 ./scripts/setup.sh  # tested PocketBase version
 ./pocketbase serve
 ```
 
@@ -99,8 +112,9 @@ and on the dashboard.
 
 Gear that's only legal to use until a date — harnesses, extinguishers,
 slings, gas monitors — can carry **inspection requirements**. The same scan
-that answers "where is it" then answers "is it safe to use": a derived
-RED **do-not-use** / YELLOW **due-soon** / GREEN badge on the asset page, a
+that answers "where is it" also shows whether its recorded inspection history
+needs attention: a derived RED **do-not-use** / YELLOW **due-soon** / GREEN
+badge on the asset page, a
 worst-first panel on the dashboard for the Monday safety walk, one-tap
 inspection logging (works offline), and a CSV export of the append-only
 inspection history. It records inspections — it is not a safety program,
@@ -119,12 +133,55 @@ your LAN IP instead:
 Then set the **Base URL** on the labels page to `http://<your-lan-ip>:8090`
 before printing, so the QR codes point somewhere phones can actually reach.
 
+## Product boundary and related applications
+
+TrenchNote owns physical logistics: receipt, location, custody, movement,
+reservation, consumption, and evidence captured at those events. It may record
+that material left stock or was moved to an installed location, but it does not
+decide that installation, testing, startup, acceptance, or turnover succeeded.
+
+The intended product family keeps separate bounded contexts and databases:
+LineCheck for linear-infrastructure testing and acceptance, and LoopCheck for
+plant equipment/system checkout and turnover. No cross-product handoff is
+implemented in TrenchNote today. Proposed ownership and migration questions are
+documented in [product-boundary.md](docs/product-boundary.md) and
+[overlap-and-migrations.md](docs/overlap-and-migrations.md), not presented as
+shipped integrations.
+
+An optional proprietary `trenchnote-lookahead` sidecar may analyze the public
+REST contract as an ordinary client. It is never required for field execution,
+retention, backup, or current core exports, and its proprietary implementation
+and operations remain documented in its private repository.
+
+### Explicit non-goals
+
+- No procurement or purchase-order model; a delivery PO number is typed
+  reference text only.
+- No accounting, rates, billing calculations, scheduling, or dispatch system.
+- No inspection assignments, approvals, escalations, or claim of legal
+  compliance.
+- No vendor API integrations, shared product database, multi-master sync,
+  universal workflow engine, or paid runtime dependency.
+
 ## Documentation
 
+- **[docs/documentation-index.md](docs/documentation-index.md)** — every
+  document mapped by authority: normative, descriptive, proposed, historical,
+  or generated.
+- **[docs/current-state.md](docs/current-state.md)** — confirmed stack,
+  collections, workflows, offline behavior, deployment status, tests, and
+  limitations at a dated repository snapshot.
 - **[USER_GUIDE.md](USER_GUIDE.md)** — the field guide: scanning, moving,
   reserving, materials. Written for crews, not developers.
 - **[docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md)** — how it works under
   the hood: data model, the ledger invariants, migrations, frontend patterns.
+- **[docs/product-boundary.md](docs/product-boundary.md)** and
+  **[docs/domain-model.md](docs/domain-model.md)** — owned scope, neighboring
+  contexts, authoritative facts, mutability, and proposed concepts kept
+  separate from current entities.
+- **[docs/architecture-status.md](docs/architecture-status.md)** and
+  **[docs/open-questions.md](docs/open-questions.md)** — settled choices,
+  proposed directions, risks, and the decision backlog.
 - **[docs/DEPLOY.md](docs/DEPLOY.md)** — running it for real: trailer
   Pi or VPS, systemd, HTTPS with Caddy, and backups you've actually tested.
 - **[docs/API.md](docs/API.md)** — the public API contract (v1): what

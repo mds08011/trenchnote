@@ -405,7 +405,7 @@ this repo may ever reference, detect, or depend on premium code.
 ## Local development
 
 ```sh
-./scripts/setup.sh    # once — downloads the binary
+PB_VERSION=0.39.6 ./scripts/setup.sh  # once — tested contract version
 ./pocketbase serve    # http://127.0.0.1:8090, migrations auto-apply
 ```
 
@@ -451,7 +451,8 @@ limitation, by design: the API cannot backdate `created`, so all seeded
 movements are stamped "now"; history lives in the sequences and the
 reservation dates.
 
-The pages have no test suite; the verification workflow is exercising the
-API with `curl` (create → move → check the ledger) and the pages in a
-browser. Keep it that way until there's a reason not to — the whole frontend
-is ~45 KB of readable source.
+The pages have no automated test suite; the current verification workflow is
+exercising the API with `curl` (create → move → check the ledger), running the
+deployment preflight/live checks, and exercising the pages and offline replay in
+a browser. Keep the source readable and the field payload small; add automation
+where repeated failures justify its maintenance cost.
