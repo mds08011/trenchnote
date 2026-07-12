@@ -253,9 +253,12 @@ warming caches and stopping PocketBase, and verify queued writes after restart.
 
 ## Related documents
 
+- [Product boundary](product-boundary.md)
+- [Domain model](domain-model.md)
+- [Invariants](invariants.md)
 - [Public API contract](API.md)
 - [Developer guide](DEVELOPER_GUIDE.md)
 - [Documentation index](documentation-index.md)
 
-Product-boundary, domain-model, invariant, and architecture-status documents
-are the next planned documentation-baseline tasks and are not yet authoritative.
+Architecture-status and ecosystem documents are the next planned
+documentation-baseline task and are not yet authoritative.

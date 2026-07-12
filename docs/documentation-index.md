@@ -27,7 +27,7 @@ its context. A proposed ADR is proposed only.
 | [`README.md`](../README.md) | Descriptive | Product overview, quickstart, current features, and documentation links |
 | [`USER_GUIDE.md`](../USER_GUIDE.md) | Descriptive | Plain-language field workflow |
 | [`docs/current-state.md`](current-state.md) | Descriptive | Confirmed implementation, deployment, tests, and limitations at a dated repository snapshot |
-| `docs/product-boundary.md` (planned) | Normative/Proposed | Current TrenchNote scope plus explicitly proposed family boundaries |
+| [`docs/product-boundary.md`](product-boundary.md) | Normative/Proposed | Current TrenchNote scope plus explicitly proposed family boundaries |
 | `docs/open-questions.md` (planned) | Proposed | Decision backlog and latest safe decision points |
 
 ## Architecture and domain
@@ -36,8 +36,8 @@ its context. A proposed ADR is proposed only.
 | --- | --- | --- |
 | [`docs/DEVELOPER_GUIDE.md`](DEVELOPER_GUIDE.md) | Descriptive | Implementation patterns, collections, offline queue, hooks, and development workflow |
 | [`docs/API.md`](API.md) | Normative | Public PocketBase REST contract v1 and compatibility promise |
-| `docs/domain-model.md` (planned) | Descriptive/Proposed | Current entities and clearly separated proposed ecosystem concepts |
-| `docs/invariants.md` (planned) | Normative/Proposed | Confirmed rules that protect current behavior and desired future cross-product rules |
+| [`docs/domain-model.md`](domain-model.md) | Descriptive/Proposed | Current entities and clearly separated proposed ecosystem concepts |
+| [`docs/invariants.md`](invariants.md) | Normative/Proposed | Confirmed rules that protect current behavior and desired future cross-product rules |
 | `docs/architecture-status.md` (planned) | Descriptive/Proposed | Decision status, implementation, change risk, and unresolved decisions by topic |
 | `docs/lifecycle-map.md` (planned) | Descriptive/Proposed | Product-family lifecycle, ownership, overlap, and handoff points |
 | `docs/ecosystem-contracts.md` (planned) | Proposed | Non-binding draft vocabulary for future public identifiers, evidence, events, and handoffs |
