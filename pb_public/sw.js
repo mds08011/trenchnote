@@ -17,7 +17,7 @@
 // Writes (POST/PATCH) pass straight through — offline queueing happens in
 // tn-sync.js where the user can SEE it, not in service-worker magic.
 
-const VERSION = 'v15';                   // bump on every shell change
+const VERSION = 'v18';                   // bump on every shell change
 const SHELL_CACHE = 'tn-shell-' + VERSION;
 const API_CACHE = 'tn-api-' + VERSION;
 
@@ -27,12 +27,15 @@ const SHELL = [
   'asset.html',
   'material.html',
   'receiving.html',
+  'manifests.html',
+  'manifest.html',
   'labels.html',
   'login.html',
   'scan.html',
   'tn-auth.js',
   'tn-sync.js',
   'tn-inspect.js',
+  'tn-containers.js',
   'manifest.json',
   'icon-192.png',
   'icon-512.png',

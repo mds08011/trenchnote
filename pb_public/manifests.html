@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#d95f02">
+<title>Build transfer manifest · TrenchNote</title>
+<link rel="manifest" href="manifest.json">
+<script src="tn-auth.js"></script>
+<script src="tn-sync.js"></script>
+<script src="tn-containers.js"></script>
+<script defer src="vendor/alpine.min.js"></script>
+<style>
+:root { --ink:#17191c; --steel:#59616b; --line:#c8ccd1; --paper:#fff; --ground:#eef0f2; --safety:#d95f02; --bad:#a1160a; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--ground); color:var(--ink); font-family:system-ui,-apple-system,sans-serif; }
+[x-cloak] { display:none!important; }
+header { background:var(--ink); color:#fff; padding:12px 16px; display:flex; gap:16px; align-items:center; justify-content:space-between; }
+header strong { text-transform:uppercase; letter-spacing:.12em; }
+header a { color:#ffad6b; font-weight:800; text-decoration:none; min-height:44px; display:inline-flex; align-items:center; }
+main { width:min(760px,100%); margin:auto; padding:16px; }
+h1 { margin:4px 0 6px; font-size:28px; }
+.lede { color:var(--steel); margin:0 0 18px; }
+.card { background:var(--paper); border:2px solid var(--ink); padding:16px; margin:0 0 16px; }
+.grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+label { display:block; font-size:13px; font-weight:900; text-transform:uppercase; letter-spacing:.06em; }
+select,input { width:100%; min-height:48px; margin-top:6px; padding:10px; border:2px solid #737982; border-radius:0; background:#fff; color:var(--ink); font:inherit; font-size:16px; }
+button,.button { min-height:48px; border:2px solid var(--ink); background:#fff; color:var(--ink); padding:10px 14px; font:800 15px system-ui; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; }
+button.primary { background:var(--safety); color:#fff; border-color:var(--safety); }
+button:disabled { opacity:.45; cursor:not-allowed; }
+.actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; }
+.actions>* { flex:1; }
+.picker { display:grid; grid-template-columns:1fr auto; gap:8px; align-items:end; margin-top:12px; }
+.bulk-picker { grid-template-columns:1fr 110px auto; }
+.line { display:grid; grid-template-columns:1fr auto; gap:12px; align-items:center; padding:12px 0; border-bottom:1px solid var(--line); }
+.line:last-child { border-bottom:0; }
+.line strong { display:block; }
+.meta { color:var(--steel); font-size:14px; }
+.qty { font:900 17px ui-monospace,monospace; white-space:nowrap; }
+.remove { min-height:44px; padding:8px 11px; color:var(--bad); border-color:var(--bad); }
+.empty { color:var(--steel); padding:14px 0; }
+.error { background:#fff1ef; border:2px solid var(--bad); color:var(--bad); padding:12px; font-weight:800; margin:12px 0; }
+.hint { background:#fff7e8; border-left:5px solid #b66a00; padding:10px 12px; margin-top:12px; }
+@media(max-width:560px) { .grid { grid-template-columns:1fr; } .bulk-picker { grid-template-columns:1fr 90px; } .bulk-picker button { grid-column:1/-1; } }
+</style>
+</head>
+<body>
+<script>TN.requireLogin();</script>
+<div x-data="manifestBuilder()" x-init="load()" x-cloak>
+  <header>
+    <strong>TrenchNote</strong>
+    <a href="index.html">← Dashboard</a>
+  </header>
+  <main>
+    <h1>Build transfer manifest</h1>
+    <p class="lede">One truck, one sender list, one receiving confirmation.</p>
+
+    <div class="error" x-show="error" x-text="error"></div>
+
+    <section class="card">
+      <div class="grid">
+        <label>From location
+          <select x-model="fromId" @change="sourceChanged()">
+            <option value="">Choose source…</option>
+            <template x-for="l in normalLocations" :key="l.id"><option :value="l.id" x-text="l.name"></option></template>
+          </select>
+        </label>
+        <label>Destination
+          <select x-model="toId" @change="persist()">
+            <option value="">Choose destination…</option>
+            <template x-for="l in normalLocations" :key="l.id"><option :value="l.id" x-show="l.id !== fromId" x-text="l.name"></option></template>
+          </select>
+        </label>
+      </div>
+      <label style="margin-top:12px">Driver name
+        <input x-model.trim="driver" @input="persist()" autocomplete="name" placeholder="Name on the truck">
+      </label>
+    </section>
+
+    <section class="card">
+      <h2 style="margin-top:0">Add equipment</h2>
+      <p class="meta">Only equipment whose ledger cache is at the selected source is listed.</p>
+      <div class="picker">
+        <label>Asset
+          <select x-model="assetPick" :disabled="!fromId">
+            <option value="">Choose tag…</option>
+            <template x-for="a in availableAssets" :key="a.id">
+              <option :value="a.id" x-text="a.tag_code + ' · ' + (a.expand?.item?.name || 'Equipment') + (a.is_container ? ' · BOX' : '')"></option>
+            </template>
+          </select>
+        </label>
+        <button @click="addAsset()" :disabled="!assetPick">Add</button>
+      </div>
+      <div class="actions">
+        <a class="button" href="scan.html?manifest=1" @click="persist()" :aria-disabled="!fromId">▣ Scan asset tag</a>
+      </div>
+      <p class="hint" x-show="!fromId">Choose the source before scanning so TrenchNote can verify the tag is there.</p>
+    </section>
+
+    <section class="card">
+      <h2 style="margin-top:0">Add bulk material</h2>
+      <div class="picker bulk-picker">
+        <label>Material
+          <select x-model="itemPick" :disabled="!fromId">
+            <option value="">Choose material…</option>
+            <template x-for="i in bulkItems" :key="i.id">
+              <option :value="i.id" x-text="i.name + ' · ledger ' + stockAt(i.id, fromId)"></option>
+            </template>
+          </select>
+        </label>
+        <label>Quantity
+          <input type="number" min="1" step="1" inputmode="numeric" x-model.number="itemQty">
+        </label>
+        <button @click="addBulk()" :disabled="!itemPick || !(itemQty > 0)">Add</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2 style="margin-top:0">Truck list <span class="meta" x-text="'(' + lines.length + ' lines)'"> </span></h2>
+      <div class="empty" x-show="!lines.length">Nothing on this manifest yet.</div>
+      <template x-for="(line,index) in lines" :key="line.key">
+        <div class="line">
+          <div>
+            <strong x-text="line.label"></strong>
+            <span class="meta" x-text="line.is_container ? 'Gang box · contents move with box' : (line.kind === 'asset' ? 'Unique equipment' : 'Bulk material')"></span>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span class="qty" x-text="line.sent_quantity + (line.kind === 'asset' ? ' ea' : '')"></span>
+            <button class="remove" @click="removeLine(index)" aria-label="Remove line">×</button>
+          </div>
+        </div>
+      </template>
+      <div class="actions">
+        <button @click="submit(false)" :disabled="!canSubmit || busy" x-text="busy ? 'Saving…' : 'Save draft'"></button>
+        <button class="primary" @click="submit(true)" :disabled="!canSubmit || busy" x-text="busy ? 'Dispatching…' : 'Dispatch truck →'"></button>
+      </div>
+      <p class="meta">Both buttons save on this phone first. If there is no signal, the sync badge carries the record until service returns.</p>
+    </section>
+  </main>
+</div>
+
+<script>
+const PB = window.location.origin;
+function manifestBuilder() {
+  return {
+    locations: [], assets: [], bulkItems: [], movements: [], lines: [],
+    fromId: '', toId: '', driver: localStorage.getItem('tn_name') || '',
+    assetPick: '', itemPick: '', itemQty: null, busy: false, error: '',
+
+    get normalLocations() { return this.locations.filter(l => l.id !== 'tnmissingxfer01'); },
+    get availableAssets() {
+      const used = new Set(this.lines.filter(l => l.kind === 'asset').map(l => l.asset));
+      return this.assets.filter(a => !a.container_id &&
+        TNContainers.effectiveLocationId(a) === this.fromId && !used.has(a.id));
+    },
+    get canSubmit() {
+      return this.fromId && this.toId && this.fromId !== this.toId && this.driver && this.lines.length;
+    },
+    locName(id) { return this.locations.find(l => l.id === id)?.name || '?'; },
+    stockAt(itemId, locId) {
+      if (!locId) return 0;
+      let qty = 0;
+      for (const m of this.movements) {
+        if (m.item !== itemId) continue;
+        if (m.to_location === locId) qty += m.quantity;
+        if (m.from_location === locId) qty -= m.quantity;
+      }
+      return qty;
+    },
+    persist() {
+      localStorage.setItem('tn_manifest_builder', JSON.stringify({
+        fromId:this.fromId, toId:this.toId, driver:this.driver, lines:this.lines
+      }));
+    },
+    restore() {
+      try {
+        const s = JSON.parse(localStorage.getItem('tn_manifest_builder') || 'null');
+        if (s) Object.assign(this, { fromId:s.fromId||'', toId:s.toId||'', driver:s.driver||this.driver, lines:s.lines||[] });
+      } catch (_) { /* a corrupt local draft is safe to ignore */ }
+    },
+    sourceChanged() {
+      this.lines = [];
+      if (this.toId === this.fromId) this.toId = '';
+      this.persist();
+    },
+    addAsset() {
+      const a = this.assets.find(x => x.id === this.assetPick);
+      if (!a) return;
+      this.lines.push({ key:'asset-'+a.id, kind:'asset', asset:a.id, item:'', quantity:0,
+        sent_quantity:1, is_container:!!a.is_container,
+        label:a.tag_code+' · '+(a.expand?.item?.name||'Equipment')+(a.is_container ? ' · GANG BOX' : '') });
+      this.assetPick = '';
+      this.persist();
+    },
+    addBulk() {
+      const i = this.bulkItems.find(x => x.id === this.itemPick);
+      const qty = Math.floor(Number(this.itemQty));
+      if (!i || !(qty > 0)) return;
+      const existing = this.lines.find(l => l.kind === 'bulk' && l.item === i.id);
+      if (existing) { existing.quantity += qty; existing.sent_quantity += qty; }
+      else this.lines.push({ key:'item-'+i.id, kind:'bulk', asset:'', item:i.id,
+        quantity:qty, sent_quantity:qty, label:(i.item_code ? i.item_code+' · ' : '')+i.name });
+      this.itemPick = ''; this.itemQty = null;
+      this.persist();
+    },
+    removeLine(index) { this.lines.splice(index,1); this.persist(); },
+
+    async load() {
+      this.restore();
+      try {
+        const [locRes, assetRes, itemRes, moveRes] = await Promise.all([
+          TN.fetch(`${PB}/api/collections/locations/records?sort=name&perPage=200`),
+          TN.fetch(`${PB}/api/collections/assets/records?sort=tag_code&perPage=500&expand=item,current_location,container_id.current_location`),
+          TN.fetch(`${PB}/api/collections/items/records?filter=(tracking_mode='bulk')&sort=name&perPage=500`),
+          // The builder needs source balances for the list. This is the same
+          // ledger sum as material.html; the 500-row ceiling is the existing
+          // small-deployment limit documented in the developer guide.
+          TN.fetch(`${PB}/api/collections/movements/records?filter=(item!='')&perPage=500`),
+        ]);
+        this.locations = (await locRes.json()).items;
+        this.assets = (await assetRes.json()).items;
+        this.bulkItems = (await itemRes.json()).items;
+        this.movements = (await moveRes.json()).items;
+
+        const code = new URLSearchParams(location.search).get('add_code');
+        if (code) {
+          const asset = this.assets.find(a => a.tag_code.toLowerCase() === code.toLowerCase());
+          if (!asset) this.error = 'That tag is not in TrenchNote.';
+          else if (!this.fromId) this.error = 'Choose a source, then scan the tag again.';
+          else if (asset.container_id) this.error = asset.tag_code+' is inside a gang box; transfer the box as one line.';
+          else if (TNContainers.effectiveLocationId(asset) !== this.fromId) this.error = asset.tag_code+' is not listed at '+this.locName(this.fromId)+'.';
+          else { this.assetPick = asset.id; this.addAsset(); }
+          history.replaceState(null, '', 'manifests.html');
+        }
+      } catch (err) {
+        this.error = 'Could not load the source list. Open this page once with signal before building offline. ('+err.message+')';
+      }
+    },
+
+    async submit(dispatch) {
+      if (!this.canSubmit) return;
+      this.busy = true; this.error = '';
+      const user = TN.user();
+      if (!user?.id) { this.error = 'Sign in again so the sender account can be recorded.'; this.busy = false; return; }
+      localStorage.setItem('tn_name', this.driver);
+
+      const manifestId = TNSync.genId();
+      const manifest = { id:manifestId, from_location:this.fromId, to_location:this.toId,
+        created_by:user.id, driver_name:this.driver, status:'draft', received_by:'' };
+      const lineBodies = this.lines.map(l => ({ id:TNSync.genId(), manifest:manifestId,
+        asset:l.asset, item:l.item, quantity:l.quantity, sent_quantity:l.sent_quantity,
+        received_quantity:0, condition_note:'', label:l.label, kind:l.kind,
+        is_container:!!l.is_container }));
+      const requests = [{ method:'POST', url:'/api/collections/manifests/records', body:manifest }];
+      for (const l of lineBodies) requests.push({ method:'POST', url:'/api/collections/manifest_lines/records', body:{
+        id:l.id, manifest:l.manifest, asset:l.asset, item:l.item, quantity:l.quantity,
+        sent_quantity:l.sent_quantity, received_quantity:0, condition_note:''
+      }});
+      if (dispatch) requests.push({ method:'PATCH', url:'/api/collections/manifests/records/'+manifestId,
+        body:{ status:'in_transit' } });
+
+      const finalStatus = dispatch ? 'in_transit' : 'draft';
+      const snapshot = { manifest:{ ...manifest, status:finalStatus, from_name:this.locName(this.fromId),
+        to_name:this.locName(this.toId), created_by_label:user.name||user.email||'signed-in account', created:'' },
+        lines:lineBodies };
+      await TNSync.enqueueBatch(requests, { manifestId, statuses:[finalStatus] }, snapshot,
+        (dispatch ? 'Dispatch ' : 'Draft ')+'Manifest #'+manifestId.slice(0,6).toUpperCase());
+      await TNSync.sync();
+      localStorage.removeItem('tn_manifest_builder');
+      location.href = 'manifest.html?id='+manifestId;
+    }
+  };
+}
+</script>
+</body>
+</html>

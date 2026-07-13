@@ -140,6 +140,10 @@ tags in five minutes is normal.
 - Tap **🕑 Move history** to see everywhere this thing has been — each hop,
   who moved it, and when. Handy for "wasn't this at Northside last week?"
 
+An amber **In transit on Manifest #…** box means a sender put the item on a
+truck and the receiving site has not confirmed it yet. The big location box
+still shows the last confirmed ledger location on purpose.
+
 ## Calling dibs (reservations)
 
 Need the machine for your pour next Thursday? On the equipment page, tap
@@ -192,6 +196,41 @@ the log and the ground disagree — more left that spot on paper than ever
 arrived. Usually it's a delivery nobody logged. Log it now and the number
 goes right.
 
+## Moving a truckload (transfer manifests)
+
+Use a manifest when one truck carries several assets or bulk materials between
+two TrenchNote locations and the receiving site needs to check the load.
+
+**Sender:**
+
+1. From the dashboard, tap **Transfer manifest**. Pick the source, destination,
+   and type the driver's name.
+2. Add equipment from the list, or tap **Scan asset tag** and scan it. Add bulk
+   materials with the quantity actually loaded. A gang box is one line — add
+   the box, not every tool inside it; its contents travel with the box.
+3. Tap **Dispatch truck**. The manifest page is printer-friendly; tap
+   **Print manifest** for the copy that rides in the cab. **Save draft** keeps
+   it staged without calling it in transit yet.
+
+**Receiver:**
+
+1. Open the manifest from **Manifests in transit** on the dashboard (or from
+   the sender's link/paper reference).
+2. Work down every line. Leave the received number alone when it matches;
+   change it when it does not. Type a plain note for anything short or damaged.
+3. Tap **Confirm all received** once. The signed-in receiving account is put on
+   the manifest, every movement is written together, and the status says
+   **received with discrepancies** if any line was short.
+
+Example: sent 40 supports, received 38. The source loses all 40, the receiving
+site gains 38, and 2 show at **Missing in transfer** until somebody finds and
+moves them. The app never calls a missing bundle “used/consumed.”
+
+While the truck is moving, asset and material pages show **in transit on
+Manifest #…**. Their normal location/stock still shows the last confirmed
+ledger count until the receiver submits — both facts are labeled so nobody
+mistakes a guess for a receipt.
+
 ## Taking a delivery
 
 Material sits in the yard for a year or more before it gets installed.
@@ -229,6 +268,7 @@ Open TrenchNote's main page in any browser to see, at a glance:
 - **Materials** — totals on hand.
 - **Spoken for** — who has claimed what, and for when.
 - **Recently moved** — the last moves, who logged them, and how long ago.
+- **Manifests in transit** — open truck handoffs, oldest first.
 
 ## The three rules
 
@@ -251,9 +291,13 @@ TrenchNote keeps working with zero bars:
   it sends itself (or tap the tag to send it now). Don't clear the browser
   or sign out while that tag is showing — that data hasn't reached the
   office yet.
-- **Meter readings, deliveries, and inspections work offline too** —
+- **Meter readings, deliveries, inspections, and transfer manifests work
+  offline too** —
   photos and all. They ride the same ⏳ queue as moves and send
   themselves when signal returns, keeping the date you actually did them.
+- The receiving phone must have opened the manifest while it still had signal
+  before it can receive that manifest offline. The receiving site cannot see a
+  brand-new sender manifest until the sender's phone reaches the server.
 - If the tag turns **red**, one of your saved moves couldn't be accepted —
   tap it, read why, and check with your PM before discarding anything.
 

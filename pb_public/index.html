@@ -23,6 +23,7 @@
 <script src="tn-auth.js"></script>
 <script src="tn-sync.js"></script>
 <script src="tn-inspect.js"></script>
+<script src="tn-containers.js"></script>
 <script defer src="vendor/alpine.min.js"></script>
 
 <style>
@@ -160,6 +161,8 @@
       &nbsp;·&nbsp;
       <a href="labels.html">Print labels →</a>
       &nbsp;·&nbsp;
+      <a href="manifests.html">Transfer manifest</a>
+      &nbsp;·&nbsp;
       <a href="#" class="signout" @click.prevent="TN.signOut()">Sign out</a>
     </span>
   </header>
@@ -202,6 +205,22 @@
         </div>
       </template>
 
+      <!-- Open truck handoffs, oldest first (ADR 0020). -->
+      <template x-if="manifests.length">
+        <div>
+          <h2>Manifests in transit</h2>
+          <section class="group">
+            <template x-for="m in manifests" :key="m.id">
+              <a class="asset-row" :href="'manifest.html?id=' + m.id">
+                <span class="tag" x-text="'#' + m.id.slice(0,6).toUpperCase()"></span>
+                <span class="name" x-text="(m.expand?.from_location?.name || '?') + ' → ' + (m.expand?.to_location?.name || '?')"></span>
+                <span class="rent" x-text="(m.driver_name || 'driver n/a') + ' · ' + ago(m.created)"></span>
+              </a>
+            </template>
+          </section>
+        </div>
+      </template>
+
       <h2>Assets by location</h2>
 
       <template x-for="g in groups" :key="g.id">
@@ -223,6 +242,9 @@
             <a class="asset-row" :href="'asset.html?code=' + encodeURIComponent(a.tag_code)">
               <span class="tag" x-text="a.tag_code"></span>
               <span class="name" x-text="a.expand?.item?.name || 'Unknown item'"></span>
+              <span class="rent" x-show="a.container_id"
+                    x-text="'IN ' + (a.expand?.container_id?.tag_code || 'BOX')"></span>
+              <span class="rent" x-show="a.is_container">BOX</span>
               <span class="rent" x-show="a.ownership === 'rented'"
                     x-text="'RENTED' + (a.vendor ? ' — ' + a.vendor : '')"></span>
             </a>
@@ -308,18 +330,19 @@ function dashboard() {
     deliveries: [],
     consumptions: [],
     reservations: [],
+    manifests: [],
     // Inspections (ADR 0014)
     inspReqs: [],
     inspAll: [],
     csvBusy: false,
 
     // Locations in name order, each with its assets attached; a synthetic
-    // "Unassigned" bucket catches assets with no current_location. Groups
-    // with assets sort before empty ones so the useful info is on top.
+    // "Unassigned" catches assets with no effective location. Contents group
+    // under the box's location, never their intentionally-empty direct cache.
     get groups() {
       const byLoc = {};
       for (const a of this.assets) {
-        const key = a.current_location || 'none';
+        const key = TNContainers.effectiveLocationId(a) || 'none';
         (byLoc[key] = byLoc[key] || []).push(a);
       }
       const groups = this.locations.map(l => ({
@@ -477,9 +500,9 @@ function dashboard() {
       try {
         // Independent reads, fired in parallel to keep slow connections snappy.
         const [locRes, assetRes, mvRes, itemRes, delRes, consRes, resvRes,
-               iqRes, insRes] = await Promise.all([
+               iqRes, insRes, manifestRes] = await Promise.all([
           TN.fetch(`${PB}/api/collections/locations/records?sort=name&perPage=200`),
-          TN.fetch(`${PB}/api/collections/assets/records?expand=item&sort=tag_code&perPage=500`),
+          TN.fetch(`${PB}/api/collections/assets/records?expand=item,current_location,container_id.item,container_id.current_location&sort=tag_code&perPage=500`),
           // Nested expand: "asset.item" resolves the movement's asset AND
           // that asset's item in one request; plain "item" covers bulk moves.
           TN.fetch(`${PB}/api/collections/movements/records?sort=-created&perPage=15&expand=asset.item,item,from_location,to_location`),
@@ -497,9 +520,10 @@ function dashboard() {
           // the CSV export paginates properly instead).
           TN.fetch(`${PB}/api/collections/inspection_requirements/records?perPage=500`),
           TN.fetch(`${PB}/api/collections/inspections/records?sort=-inspected_at,-created&perPage=500`),
+          TN.fetch(`${PB}/api/collections/manifests/records?filter=(status='in_transit')&sort=created&perPage=100&expand=from_location,to_location`),
         ]);
         const bad = [locRes, assetRes, mvRes, itemRes, delRes, consRes, resvRes,
-                     iqRes, insRes].find(r => !r.ok);
+                     iqRes, insRes, manifestRes].find(r => !r.ok);
         if (bad) throw new Error('API error ' + bad.status);
         this.inspReqs = (await iqRes.json()).items;
         this.inspAll = (await insRes.json()).items;
@@ -510,6 +534,7 @@ function dashboard() {
         this.deliveries = (await delRes.json()).items;
         this.consumptions = (await consRes.json()).items;
         this.reservations = (await resvRes.json()).items;
+        this.manifests = (await manifestRes.json()).items;
         this.state = 'ready';
       } catch (err) {
         this.state = 'error';

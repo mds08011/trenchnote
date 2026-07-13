@@ -13,7 +13,7 @@ origin that serves the pages (e.g. `http://192.168.1.50:8090`).
 
 ## Contract collections
 
-These ten collections — their fields, semantics, and the operations marked
+These fourteen collections — their fields, semantics, and the operations marked
 allowed — are stable. A breaking change to any of them requires a new ADR
 and a version bump of this contract, announced in the release notes.
 
@@ -29,6 +29,10 @@ and a version bump of this contract, announced in the release notes.
 | `inspections` | ✔ contract | ✔ (see asset-match rule) | **never** | **never** |
 | `condition_reports` | ✔ contract | ✔ (photo required) | **never** | **never** |
 | `condition_resolutions` | ✔ contract | ✔ | **never** | **never** |
+| `manifests` | ✔ contract | ✔ (draft only) | ✔ (forward workflow only) | admin-only |
+| `manifest_lines` | ✔ contract | ✔ (draft parent) | ✔ (receipt fields only) | ✔ (draft parent only) |
+| `container_events` | ✔ contract | ✔ | **never** | **never** |
+| `kit_audits` | ✔ contract | ✔ | **never** | **never** |
 
 Field-level shapes are defined by the migrations in `pb_migrations/` and
 explained in the [developer guide](DEVELOPER_GUIDE.md#data-model).
@@ -141,6 +145,23 @@ Highlights that are load-bearing for API clients:
   reports is open. Wear and condition-note reports do not affect that badge.
   Multiple resolution rows are legal; any one closes the report for the
   derivation while all remain in history.
+- **Transfer manifests (ADR 0020):** `manifests` records
+  `from_location`, `to_location`, authenticated `created_by`, free-text
+  `driver_name`, forward-only `status`, and authenticated `received_by`.
+  Allowed transitions are `draft → in_transit → received` or
+  `received_with_discrepancies`; API rules reject backward transitions and
+  require the receiving account to equal `@request.auth.id`.
+  `manifest_lines` is exactly one asset, or one bulk item plus positive
+  `quantity`; `sent_quantity` freezes at dispatch. While in transit, only
+  `received_quantity` (0 through sent) and `condition_note` may change.
+  PocketBase number fields use zero as their empty value, so parent status
+  distinguishes an unconfirmed zero from “receiver confirmed none.”
+- **Transit and shortfall semantics:** dispatch writes no movement and creates
+  no virtual location; in transit is derived from the parent manifest status.
+  Confirmation writes ordinary movements. Received quantity goes from source
+  to destination and any shortfall goes to the seeded `Missing in transfer`
+  location (`tnmissingxfer01`, type `transit`). Existing movement/stock
+  semantics remain unchanged.
 
 ## Other contract surface
 
@@ -154,6 +175,10 @@ Highlights that are load-bearing for API clients:
   the contract collections, authenticated like everything else. Prefer this
   over tight polling loops; the server may be a Raspberry Pi whose first
   job is serving field scans.
+- **Transactional batch:** `POST /api/batch` is enabled for manifest dispatch
+  and receipt (maximum 250 subrequests, 10-second server timeout). The normal
+  per-collection rules above apply to every subrequest; the whole request
+  commits or rolls back as one PocketBase/SQLite transaction.
 
 ## Not contract
 
@@ -186,10 +211,12 @@ disabled, so accounts are created by the admin in the PocketBase UI.
   fields, changed rules, changed URL patterns) require an ADR and bump this
   document's version, announced in release notes.
 - Contract v1 as published here reflects the schema through migration
-  `1783468820` (readings — ADR 0012; certs & inspections — ADR 0014;
+  `1783468824` (readings — ADR 0012; certs & inspections — ADR 0014;
   receiving log — ADR 0013; rental dates — ADR 0015; reading observation
   date — ADR 0016; item code — ADR 0018; damage & condition reports — ADR
-  0019; all additive: new collections and optional fields only).
+  0019; transfer manifests — ADR 0020; all additive: new collections and
+  optional fields only; Gang Box fields/events/audits follow in migrations
+  `1783468822`–`1783468824`).
 - Core is currently developed and tested against **PocketBase 0.39.x**
   (pin with `PB_VERSION=0.39.6 ./scripts/setup.sh`). A PocketBase upgrade
   that changes REST behavior is treated as a breaking change and handled

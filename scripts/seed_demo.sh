@@ -84,6 +84,7 @@ if [ -z "$TOKEN" ]; then
   echo "the account in the admin UI ($TN_URL/_/ -> collections -> users)." >&2
   exit 1
 fi
+USER_ID=$(rid) # created_by/received_by are the signed-in account (ADR 0020)
 echo "Signed in as $TN_EMAIL"
 
 # ---- Idempotence sentinel ---------------------------------------------------
@@ -345,6 +346,50 @@ consume "$B_SUP"    30 "$LS4"  "M. Castillo" "wet well piping"
 consume "$B_BOLT"  140 "$WWTP" "D. Okafor"   "equipment anchor pattern"
 echo "  $MOVES total movements (receives, transfers, consumes included)"
 
+# ---- Transfer manifests (ADR 0020) -----------------------------------------
+# One completed short receipt exercises the stock invariant: all 50 leave the
+# source, 48 reach the destination, and 2 remain visible at the seeded
+# "Missing in transfer" holding location. A second manifest stays in transit
+# so the dashboard and asset/material overlays have honest demo data.
+manifest() { # FROM TO DRIVER -> id
+  api POST "collections/manifests/records" \
+    "{\"from_location\":\"$1\",\"to_location\":\"$2\",\"created_by\":\"$USER_ID\",\"driver_name\":\"$3\",\"status\":\"draft\"}"
+  rid
+}
+manifest_bulk_line() { # MANIFEST ITEM QTY -> id
+  api POST "collections/manifest_lines/records" \
+    "{\"manifest\":\"$1\",\"item\":\"$2\",\"quantity\":$3,\"sent_quantity\":$3,\"received_quantity\":0}"
+  rid
+}
+manifest_asset_line() { # MANIFEST ASSET -> id
+  api POST "collections/manifest_lines/records" \
+    "{\"manifest\":\"$1\",\"asset\":\"$2\",\"quantity\":0,\"sent_quantity\":1,\"received_quantity\":0}"
+  rid
+}
+
+# Sent 50, received 48: two ordinary transfer movements preserve every stock
+# sum without mislabeling the shortfall as consumption.
+MF_DONE=$(manifest "$YARD" "$WWTP" "L. Brooks")
+ML_DONE=$(manifest_bulk_line "$MF_DONE" "$B_SUP" 50)
+api PATCH "collections/manifests/records/$MF_DONE" '{"status":"in_transit"}'
+api PATCH "collections/manifest_lines/records/$ML_DONE" \
+  '{"received_quantity":48,"condition_note":"Two bundles not on truck at unload"}'
+api POST "collections/movements/records" \
+  "{\"item\":\"$B_SUP\",\"quantity\":48,\"from_location\":\"$YARD\",\"to_location\":\"$WWTP\",\"moved_by\":\"D. Okafor\",\"note\":\"Manifest $MF_DONE\"}"
+api POST "collections/movements/records" \
+  "{\"item\":\"$B_SUP\",\"quantity\":2,\"from_location\":\"$YARD\",\"to_location\":\"tnmissingxfer01\",\"moved_by\":\"D. Okafor\",\"note\":\"Manifest $MF_DONE shortfall\"}"
+MOVES=$((MOVES+2))
+api PATCH "collections/manifests/records/$MF_DONE" \
+  "{\"status\":\"received_with_discrepancies\",\"received_by\":\"$USER_ID\"}"
+
+# Still on the road: source ledger/cache stay unchanged while the manifest
+# overlay names the committed asset and bulk quantity.
+MF_OPEN=$(manifest "$YARD" "$WTP" "S. Patel")
+manifest_asset_line "$MF_OPEN" "$A09" >/dev/null
+manifest_bulk_line "$MF_OPEN" "$B_REBAR" 25 >/dev/null
+api PATCH "collections/manifests/records/$MF_OPEN" '{"status":"in_transit"}'
+echo "  2 transfer manifests (1 in transit, 1 received short by 2)"
+
 # ---- Reservations (8): mixed lifecycle --------------------------------------
 d() { "$DATE" -d "$1" +%F; }   # relative date -> YYYY-MM-DD
 resv() { # ASSET WHO NEEDED_BY RELEASE NOTE [STATUS_OMITTED_IF_EMPTY]
@@ -505,6 +550,10 @@ echo ""
 echo "Note: all movement timestamps read 'now' — the public API cannot"
 echo "backdate an append-only ledger (that's a feature). Sequences and"
 echo "reservation dates carry the demo's history instead."
+echo ""
+echo "Transfer manifests (ADR 0020): one Yard-to-WTP truck is in transit;"
+echo "one 50-support transfer arrived with 48 at Bear Creek and 2 recorded"
+echo "at Missing in transfer. Open either from the dashboard."
 echo ""
 echo "Condition evidence (ADR 0019): A010 has one open damage report; A011"
 echo "has a damage report resolved as repaired; rented A005 has two delivery-"

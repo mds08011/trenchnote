@@ -39,6 +39,8 @@ facts captured about the same physical subject at the same field touchpoint.
   OS&D note, and damage photos;
 - move a unique asset between locations;
 - transfer bulk quantities between locations;
+- build, dispatch, print, and receive a two-site transfer manifest with
+  item-by-item discrepancies;
 - consume bulk material so it leaves stock while remaining in history;
 - derive asset location and bulk stock from movement facts;
 - record free-text custody and movement attribution;
@@ -63,6 +65,7 @@ installation quality, acceptance, startup, or turnover.
 - procurement, purchase-order records, ordered quantities, invoice matching,
   rates, costing, accounting, payroll, or equipment billing calculations;
 - vendor API integrations;
+- freight/shipping features such as carriers, tracking numbers, or costs;
 - construction scheduling or lookahead planning;
 - inspection assignments, approvals, escalations, or a company safety program;
 - repair work orders, mechanic assignments, maintenance scheduling,

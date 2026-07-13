@@ -31,6 +31,22 @@ Client validation is convenience. The collection `createRule` is the boundary.
 no stock field to backfill or reconcile. Negative stock remains visible as a
 data error rather than being clamped to zero.
 
+### Manifest transit is an overlay, not a ledger location
+
+**CONFIRMED CURRENT:** dispatch changes a manifest to `in_transit` but writes no
+movement. Asset/material pages show the named manifest separately while the
+ordinary location/stock remains the last confirmed ledger answer. Receipt then
+writes ordinary movements; existing stock formulas never acquire a manifest
+special case.
+
+### Manifest workflow moves forward and receipt is atomic
+
+**CONFIRMED CURRENT:** API rules allow only
+`draft → in_transit → received | received_with_discrepancies`. A receiving
+submit is one PocketBase batch transaction containing every line confirmation,
+movement, asset cache patch, and final receiving identity/status. A failure
+commits none of it. Shortfalls move to `Missing in transfer`, not consumption.
+
 ### User-facing ledger corrections append facts
 
 **CONFIRMED CURRENT:** authenticated application clients cannot update or delete

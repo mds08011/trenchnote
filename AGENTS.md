@@ -1,6 +1,6 @@
-# CLAUDE.md — TrenchNote
+# AGENTS.md — TrenchNote
 
-Project context for Claude Code sessions. Read this first, every session.
+Project context for Codex sessions. Read this first, every session.
 
 ## What TrenchNote is
 
@@ -63,7 +63,7 @@ Do not change these without explicit approval from the maintainer.
   as sole copyright holder (or use a CLA for outside contributors) so a paid
   managed-hosting tier remains possible later.
 
-## Data model — 14 collections
+## Data model — 8 collections
 
 Schema lives in `pb_migrations/` as versioned PocketBase JS migrations, NOT as
 hand-built collections in the admin UI. A fresh self-hoster must be able to
@@ -144,36 +144,6 @@ reproduce the entire database from the repo.
   removed, past due, or no pass on record; YELLOW = due within 14 days (a
   code constant, not a setting); GREEN = all current; no badge = no
   requirements. Nothing about compliance is ever stored.
-- **`condition_reports`** — append-only photographed observations (ADR 0019):
-  `asset`, `report_type` (`damage` | `wear` | `condition_note`), required
-  `description`, required single `photo`, `reported_by`, and server-set
-  `created`. `condition_note` documents good condition at rental delivery or
-  before return without marking the asset damaged.
-- **`condition_resolutions`** — append-only human outcomes (ADR 0019):
-  `report`, `resolution` (`repaired` | `accepted_as_is` | `disposed` |
-  `returned_to_vendor`), `note`, `resolved_by`, and server-set `created`.
-  **DAMAGED is derived**: any damage report without a related resolution.
-  No damaged/open status is stored.
-- **`manifests`** — the forward-only site-to-site handshake (ADR 0020):
-  `from_location`, `to_location`, signed-in `created_by`, free-text
-  `driver_name`, `status` (`draft` → `in_transit` → `received` or
-  `received_with_discrepancies`), and signed-in `received_by`. In transit is
-  derived from this workflow row — dispatch writes no movement and uses no
-  virtual location.
-- **`manifest_lines`** — immutable sent facts plus receiving confirmation:
-  one `asset`, or one `item` + `quantity`, with `sent_quantity`,
-  `received_quantity`, and `condition_note`. Receipt uses one PocketBase batch
-  transaction to write line confirmations, ordinary movements, asset-cache
-  patches, and final status. Shortfalls move to the seeded `Missing in
-  transfer` holding location rather than being mislabeled as consumption.
-- **`container_events`** — append-only Gang Box membership facts: add/remove
-  one loose asset to/from one top-level container. `assets.is_container` marks
-  a box and `assets.container_id` is a derived membership cache; contained
-  assets derive location from the box and cannot move independently.
-- **`kit_audits`** — append-only, client-dated Gang Box checklist snapshots.
-  Missing results atomically remove the member and move it to `Missing in
-  transfer`. Boxes travel on transfer manifests as one ordinary asset line;
-  their contents are never repeated as lines.
 
 ### Model principles
 
@@ -192,7 +162,7 @@ reproduce the entire database from the repo.
 
 ```
 trenchnote/
-├── CLAUDE.md              # this file — project context
+├── AGENTS.md              # this file — project context
 ├── README.md              # what it is + quickstart for self-hosters
 ├── USER_GUIDE.md          # field guide for crews — plain language, no jargon
 ├── ROADMAP.md             # parked ideas + the free/hosted-tier line
@@ -208,8 +178,6 @@ trenchnote/
 │   ├── asset.html         # scan landing page: view + move an asset
 │   ├── material.html      # bulk item: stock per location (derived) + move quantities
 │   ├── receiving.html     # print-friendly receiving report (ADR 0013)
-│   ├── manifests.html     # build and dispatch a transfer manifest
-│   ├── manifest.html      # print/receive one transfer manifest (ADR 0020)
 │   ├── labels.html        # print QR labels for all assets
 │   ├── scan.html          # in-app QR scanner; walk mode audits a location
 │   ├── login.html         # sign in; token to localStorage
@@ -276,10 +244,6 @@ with auth-required rules from day one.
   (ADR 0014). It records inspections; it does not schedule work, assign
   inspectors, or constitute compliance. If a feature request needs workflow
   — assignments, approvals, escalations — the answer is no.
-- **No repair work orders or maintenance management** (ADR 0019). Condition
-  reports record photo evidence and a human resolution only — no mechanic
-  assignments, maintenance scheduling, labor/parts/cost tracking, or approval
-  workflow.
 - No multi-tenant shared-database complexity. The future SaaS tier is one
   PocketBase instance per customer (Vikunja-style), which is simpler and safer.
 - No multi-master sync between instances. Deployment is one writable VPS with
@@ -288,7 +252,7 @@ with auth-required rules from day one.
 
 ## Definition of done — the docs-as-code rule
 
-Claude acts as Lead Developer AND Technical Writer for this project. A
+Codex acts as Lead Developer AND Technical Writer for this project. A
 feature, bug fix, or architecture change is NOT finished until the
 documentation checklist below is done. Do not ask permission to write the
 docs — analyze the code just written, update the documentation, and report

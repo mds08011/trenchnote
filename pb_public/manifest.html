@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#d95f02">
+<title>Transfer manifest · TrenchNote</title>
+<link rel="manifest" href="manifest.json">
+<script src="tn-auth.js"></script>
+<script src="tn-sync.js"></script>
+<script defer src="vendor/alpine.min.js"></script>
+<style>
+:root { --ink:#17191c; --steel:#59616b; --line:#b9bec5; --paper:#fff; --ground:#eef0f2; --safety:#d95f02; --bad:#a1160a; --warn:#8a5a00; --good:#176b37; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--ground); color:var(--ink); font-family:system-ui,-apple-system,sans-serif; }
+[x-cloak] { display:none!important; }
+header { background:var(--ink); color:#fff; padding:12px 16px; display:flex; gap:14px; align-items:center; justify-content:space-between; }
+header strong { text-transform:uppercase; letter-spacing:.12em; }
+header a { color:#ffad6b; font-weight:800; text-decoration:none; min-height:44px; display:inline-flex; align-items:center; }
+main { width:min(820px,100%); margin:auto; padding:16px; }
+.paper { background:var(--paper); border:2px solid var(--ink); padding:18px; }
+.top { display:flex; justify-content:space-between; gap:20px; align-items:start; border-bottom:4px solid var(--ink); padding-bottom:14px; }
+h1 { margin:0; font-size:30px; }
+.number { font:900 21px ui-monospace,monospace; white-space:nowrap; }
+.status { display:inline-block; margin-top:8px; padding:5px 9px; border:2px solid currentColor; font-size:12px; font-weight:900; text-transform:uppercase; letter-spacing:.08em; }
+.status.in_transit { color:var(--warn); }
+.status.received { color:var(--good); }
+.status.received_with_discrepancies { color:var(--bad); }
+.facts { display:grid; grid-template-columns:1fr 1fr; gap:12px 24px; margin:18px 0; }
+.fact span { display:block; color:var(--steel); font-size:12px; font-weight:900; text-transform:uppercase; letter-spacing:.08em; }
+.fact strong { display:block; font-size:17px; margin-top:3px; }
+table { width:100%; border-collapse:collapse; margin-top:14px; }
+th { text-align:left; border-bottom:2px solid var(--ink); padding:9px 6px; font-size:12px; text-transform:uppercase; letter-spacing:.06em; }
+td { border-bottom:1px solid var(--line); padding:12px 6px; vertical-align:top; }
+.qty { width:92px; text-align:right; font:900 16px ui-monospace,monospace; }
+input,textarea { width:100%; min-height:46px; padding:9px; border:2px solid #747b84; border-radius:0; font:inherit; font-size:16px; background:#fff; }
+textarea { min-height:58px; resize:vertical; }
+.receive-grid { display:grid; grid-template-columns:110px 1fr; gap:8px; margin-top:7px; }
+.receive-grid label { font-size:11px; font-weight:900; text-transform:uppercase; }
+.discrepancy { color:var(--bad); font-weight:900; }
+.actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:18px; }
+button { min-height:48px; border:2px solid var(--ink); background:#fff; color:var(--ink); padding:10px 14px; font:800 15px system-ui; cursor:pointer; }
+button.primary { background:var(--safety); color:#fff; border-color:var(--safety); }
+button:disabled { opacity:.45; }
+.error { background:#fff1ef; border:2px solid var(--bad); color:var(--bad); padding:12px; font-weight:800; margin-bottom:14px; }
+.notice { background:#fff7e8; border-left:5px solid #b66a00; padding:11px 12px; margin:14px 0; font-weight:700; }
+.success { background:#edf8f0; border-left-color:var(--good); }
+.signature { margin-top:28px; display:grid; grid-template-columns:1fr 1fr; gap:36px; }
+.sigline { border-top:1px solid var(--ink); padding-top:5px; font-size:12px; color:var(--steel); }
+@media(max-width:600px) { .top,.facts { display:block; } .number { margin-top:10px; } .fact { margin:12px 0; } .signature { grid-template-columns:1fr; gap:28px; } th:nth-child(3),td:nth-child(3) { display:none; } .receive-grid { grid-template-columns:95px 1fr; } }
+@media print {
+  body { background:#fff; font-size:11pt; }
+  header,.actions,#tn-sync-badge,#tn-stale-banner,.screen-only { display:none!important; }
+  main { width:100%; padding:0; }
+  .paper { border:0; padding:0; }
+  input,textarea { border:0; padding:0; min-height:0; }
+}
+</style>
+</head>
+<body>
+<script>TN.requireLogin();</script>
+<div x-data="manifestPage()" x-init="load()" x-cloak>
+  <header>
+    <strong>TrenchNote</strong>
+    <div style="display:flex;gap:14px"><a href="manifests.html">+ New</a><a href="index.html">Dashboard</a></div>
+  </header>
+  <main>
+    <div class="error" x-show="error" x-text="error"></div>
+    <section class="paper" x-show="manifest">
+      <div class="top">
+        <div>
+          <h1>Transfer manifest</h1>
+          <span class="status" :class="manifest?.status" x-text="statusLabel"></span>
+        </div>
+        <div class="number" x-text="'#' + manifestNumber"></div>
+      </div>
+
+      <div class="notice" x-show="localOnly">Saved on this phone. The sync badge shows when the other site can see it.</div>
+      <div class="notice success" x-show="manifest?.status === 'received'">Received with all lines matching.</div>
+      <div class="notice" x-show="manifest?.status === 'received_with_discrepancies'">Received with a recorded shortfall. Missing quantities are held at “Missing in transfer.”</div>
+
+      <div class="facts">
+        <div class="fact"><span>From</span><strong x-text="manifest?.from_name"></strong></div>
+        <div class="fact"><span>To</span><strong x-text="manifest?.to_name"></strong></div>
+        <div class="fact"><span>Driver</span><strong x-text="manifest?.driver_name"></strong></div>
+        <div class="fact"><span>Sent by account</span><strong x-text="manifest?.created_by_label || '—'"></strong></div>
+        <div class="fact"><span>Created</span><strong x-text="fmtDate(manifest?.created)"></strong></div>
+        <div class="fact"><span>Received by account</span><strong x-text="manifest?.received_by_label || '—'"></strong></div>
+      </div>
+
+      <table>
+        <thead><tr><th>Line</th><th class="qty">Sent</th><th class="qty">Received</th><th>Condition / discrepancy note</th></tr></thead>
+        <tbody>
+          <template x-for="line in lines" :key="line.id">
+            <tr :class="{ discrepancy: isDiscrepancy(line) && isClosed }">
+              <td><strong x-text="line.label"></strong><div style="font-size:12px;color:var(--steel)" x-text="line.is_container ? 'Gang box · contents move with box' : (line.kind === 'asset' ? 'Unique equipment' : 'Bulk material')"></div></td>
+              <td class="qty" x-text="line.sent_quantity"></td>
+              <td class="qty" x-show="manifest?.status !== 'in_transit'" x-text="isClosed ? line.received_quantity : '—'"></td>
+              <td x-show="manifest?.status !== 'in_transit'" x-text="line.condition_note || '—'"></td>
+              <td colspan="2" x-show="manifest?.status === 'in_transit'">
+                <div class="receive-grid">
+                  <label>Received
+                    <input type="number" min="0" :max="line.sent_quantity" step="1" inputmode="numeric" x-model.number="line.received_quantity">
+                  </label>
+                  <label>Note
+                    <textarea x-model.trim="line.condition_note" :placeholder="line.received_quantity < line.sent_quantity ? 'Explain the shortfall or condition' : 'Optional condition note'"></textarea>
+                  </label>
+                </div>
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+
+      <div class="notice screen-only" x-show="manifest?.status === 'in_transit' && hasUnnotedShortfall">
+        A line is short. Add a plain-language note so the recorded discrepancy is useful later.
+      </div>
+
+      <div class="actions">
+        <button onclick="window.print()">Print manifest</button>
+        <button class="primary" x-show="manifest?.status === 'draft'" @click="dispatch()" :disabled="busy" x-text="busy ? 'Saving…' : 'Dispatch truck →'"></button>
+        <button class="primary" x-show="manifest?.status === 'in_transit'" @click="receive()" :disabled="busy || !validReceipt" x-text="busy ? 'Confirming…' : 'Confirm all received'"></button>
+      </div>
+
+      <div class="signature" x-show="manifest?.status === 'draft' || manifest?.status === 'in_transit'">
+        <div class="sigline">Sender / date</div><div class="sigline">Receiver / date</div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+const PB = window.location.origin;
+const MISSING_LOCATION = 'tnmissingxfer01';
+function manifestPage() {
+  return {
+    id:new URLSearchParams(location.search).get('id') || '', manifest:null, lines:[],
+    error:'', busy:false, localOnly:false,
+    get manifestNumber() { return (this.id || '').slice(0,6).toUpperCase(); },
+    get statusLabel() { return (this.manifest?.status || '').replaceAll('_',' '); },
+    get isClosed() { return ['received','received_with_discrepancies'].includes(this.manifest?.status); },
+    get validReceipt() {
+      return this.lines.length && this.lines.every(l => Number.isInteger(Number(l.received_quantity)) &&
+        Number(l.received_quantity) >= 0 && Number(l.received_quantity) <= Number(l.sent_quantity));
+    },
+    get hasUnnotedShortfall() { return this.lines.some(l => l.received_quantity < l.sent_quantity && !l.condition_note); },
+    isDiscrepancy(l) { return Number(l.received_quantity) < Number(l.sent_quantity); },
+    fmtDate(iso) { return iso ? new Date(iso).toLocaleString() : 'queued on this phone'; },
+    accountLabel(record) { return record?.name || record?.email || record?.username || ''; },
+
+    normalize(manifest, lines) {
+      this.manifest = {
+        ...manifest,
+        from_name:manifest.from_name || manifest.expand?.from_location?.name || '?',
+        to_name:manifest.to_name || manifest.expand?.to_location?.name || '?',
+        created_by_label:manifest.created_by_label || this.accountLabel(manifest.expand?.created_by),
+        received_by_label:manifest.received_by_label || this.accountLabel(manifest.expand?.received_by),
+      };
+      this.lines = lines.map(l => ({
+        ...l,
+        kind:l.kind || (l.asset ? 'asset' : 'bulk'),
+        is_container:!!(l.is_container || l.expand?.asset?.is_container),
+        label:l.label || (l.asset
+          ? ((l.expand?.asset?.tag_code || '?')+' · '+(l.expand?.asset?.expand?.item?.name || 'Equipment')+
+            (l.expand?.asset?.is_container ? ' · GANG BOX' : ''))
+          : (((l.expand?.item?.item_code || '') ? l.expand.item.item_code+' · ' : '')+(l.expand?.item?.name || 'Material'))),
+        received_quantity:this.manifest.status === 'in_transit' ? Number(l.sent_quantity) : Number(l.received_quantity || 0),
+        condition_note:l.condition_note || ''
+      }));
+    },
+
+    async load() {
+      if (!this.id) { this.error='No manifest id in the URL.'; return; }
+      const pending = await TNSync.pendingManifest(this.id);
+      if (pending) {
+        this.localOnly = true;
+        this.normalize(pending.snapshot.manifest, pending.snapshot.lines);
+        return;
+      }
+      try {
+        const [mRes,lRes] = await Promise.all([
+          TN.fetch(`${PB}/api/collections/manifests/records/${this.id}?expand=from_location,to_location,created_by,received_by`),
+          TN.fetch(`${PB}/api/collections/manifest_lines/records?filter=(manifest='${this.id}')&sort=created&perPage=250&expand=asset.item,item`)
+        ]);
+        if (!mRes.ok || !lRes.ok) throw new Error('manifest not found');
+        this.normalize(await mRes.json(), (await lRes.json()).items);
+      } catch (err) {
+        this.error='Could not load this manifest. The sender may still need to sync it. ('+err.message+')';
+      }
+    },
+
+    snapshot(status, receiverLabel) {
+      return { manifest:{ ...this.manifest, status,
+        received_by_label:receiverLabel || this.manifest.received_by_label },
+        lines:this.lines.map(l => ({ ...l })) };
+    },
+    async dispatch() {
+      this.busy=true; this.error='';
+      const requests=[{ method:'PATCH', url:'/api/collections/manifests/records/'+this.id, body:{status:'in_transit'} }];
+      const snap=this.snapshot('in_transit');
+      await TNSync.enqueueBatch(requests,{manifestId:this.id,statuses:['in_transit']},snap,
+        'Dispatch Manifest #'+this.manifestNumber);
+      await TNSync.sync();
+      this.manifest.status='in_transit'; this.localOnly=!!(await TNSync.pendingManifest(this.id));
+      for (const l of this.lines) l.received_quantity=l.sent_quantity;
+      this.busy=false;
+    },
+
+    async receive() {
+      if (!this.validReceipt) return;
+      if (this.hasUnnotedShortfall && !confirm('A short line has no note. Record the discrepancy anyway?')) return;
+      const user=TN.user();
+      if (!user?.id) { this.error='Sign in again so the receiving account can be recorded.'; return; }
+      this.busy=true; this.error='';
+      const receiver=this.accountLabel(user) || 'signed-in account';
+      const requests=[];
+      let hasDiscrepancy=false;
+
+      for (const line of this.lines) {
+        const received=Math.floor(Number(line.received_quantity));
+        const sent=Number(line.sent_quantity);
+        const short=sent-received;
+        hasDiscrepancy ||= short > 0;
+        requests.push({ method:'PATCH', url:'/api/collections/manifest_lines/records/'+line.id,
+          body:{ received_quantity:received, condition_note:line.condition_note || '' } });
+        const note='Manifest #'+this.manifestNumber+(line.condition_note ? ' · '+line.condition_note : '');
+
+        if (line.kind === 'asset') {
+          const destination=received === 1 ? this.manifest.to_location : MISSING_LOCATION;
+          requests.push({ method:'POST', url:'/api/collections/movements/records', body:{
+            id:TNSync.genId(), asset:line.asset, item:'', quantity:0,
+            from_location:this.manifest.from_location, to_location:destination,
+            moved_by:receiver, note
+          }});
+          // Ledger first, cache second — even inside the transaction.
+          requests.push({ method:'PATCH', url:'/api/collections/assets/records/'+line.asset,
+            body:{ current_location:destination } });
+        } else {
+          if (received > 0) requests.push({ method:'POST', url:'/api/collections/movements/records', body:{
+            id:TNSync.genId(), asset:'', item:line.item, quantity:received,
+            from_location:this.manifest.from_location, to_location:this.manifest.to_location,
+            moved_by:receiver, note
+          }});
+          if (short > 0) requests.push({ method:'POST', url:'/api/collections/movements/records', body:{
+            id:TNSync.genId(), asset:'', item:line.item, quantity:short,
+            from_location:this.manifest.from_location, to_location:MISSING_LOCATION,
+            moved_by:receiver, note:'Manifest #'+this.manifestNumber+' shortfall'+(line.condition_note ? ' · '+line.condition_note : '')
+          }});
+        }
+      }
+
+      const status=hasDiscrepancy ? 'received_with_discrepancies' : 'received';
+      requests.push({ method:'PATCH', url:'/api/collections/manifests/records/'+this.id,
+        body:{ status, received_by:user.id } });
+      const snap=this.snapshot(status,receiver);
+      await TNSync.enqueueBatch(requests,{manifestId:this.id,statuses:[status]},snap,
+        'Receive Manifest #'+this.manifestNumber);
+      await TNSync.sync();
+      this.manifest.status=status; this.manifest.received_by_label=receiver;
+      this.localOnly=!!(await TNSync.pendingManifest(this.id));
+      this.busy=false;
+    }
+  };
+}
+</script>
+</body>
+</html>

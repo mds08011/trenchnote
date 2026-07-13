@@ -90,6 +90,9 @@ Then:
 6. Already in the app? **📷 Scan** opens an in-app scanner — and picking
    your location turns it into an inventory walk that flags anything the
    ledger has wrong, with a one-tap fix.
+7. Moving a mixed truckload between sites? Open **Transfer manifest** on the
+   dashboard, add assets by scan or list plus bulk quantities, dispatch, print
+   the cab copy, and let the receiving site confirm every line.
 
 Developing against the API, or want a busy-looking demo?
 `scripts/seed_demo.sh` fills a local instance with realistic fake data
@@ -105,6 +108,15 @@ disputes stay winnable. Deliveries carry their own evidence: a packing-slip
 photo taken at the truck, vendor, PO number, and an over/short/damaged note —
 and `receiving.html` prints them per material or per PO as the report you
 attach to the dispute email.
+
+Site-to-site truckloads can use **Transfer manifests**: the sender records the
+load and driver, dispatch makes it visible as “in transit,” and the receiving
+super confirms or adjusts every line in one submit. A short receipt becomes a
+named discrepancy, not a text-message argument. Dispatch and receipt use the
+same visible offline queue as moves; confirmation writes the ordinary movement
+ledger atomically, so existing stock math remains the source of truth. This is
+a two-site handshake only — no carriers, tracking numbers, freight costs, or
+shipping-system scope.
 
 Need a machine for an upcoming pour? Any asset page has a **Reserve** option;
 the claim shows up as a "spoken for" warning to anyone who scans that asset,

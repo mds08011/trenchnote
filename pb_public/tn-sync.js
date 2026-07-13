@@ -136,6 +136,76 @@ const TNSync = {
     await this.renderBadge();
   },
 
+  // Gang-box membership is one append-only event. The server hook applies
+  // the asset membership/cache change and a removal's materialization
+  // movement inside the event transaction, so one queued POST is the whole
+  // semantic action (ADR 0021).
+  async enqueueContainerEvent(event, label) {
+    event.id = event.id || this.genId();
+    await this.qAdd({
+      kind: 'container_event',
+      event,
+      label,
+      queuedAt: new Date().toISOString(),
+      status: 'pending',
+      error: '',
+    });
+    await this.renderBadge();
+  },
+
+  // One kit_audits row is a complete checklist. Missing-item removals and
+  // movements are server-side transactional consequences of this POST.
+  async enqueueKitAudit(audit, label) {
+    audit.id = audit.id || this.genId();
+    await this.qAdd({
+      kind: 'kit_audit',
+      audit,
+      label,
+      queuedAt: new Date().toISOString(),
+      status: 'pending',
+      error: '',
+    });
+    await this.renderBadge();
+  },
+
+  // A transfer-manifest dispatch or receipt (ADR 0020). `requests` is the
+  // body array for PocketBase's transactional POST /api/batch endpoint.
+  // The semantic batch is stored BEFORE any network attempt, so a response
+  // lost after commit cannot lose the user's submit.
+  //
+  // `verify` identifies the parent manifest and the status that proves the
+  // whole transaction committed. This is the batch equivalent of a movement's
+  // duplicate pre-generated id: an atomic batch either committed every request
+  // (including the terminal status) or committed none of them.
+  async enqueueBatch(requests, verify, snapshot, label) {
+    await this.qAdd({
+      kind: 'batch',
+      requests: JSON.parse(JSON.stringify(requests)),
+      verify: verify || null, // { manifestId, statuses: [...] }
+      snapshot: snapshot || null, // lets manifest.html render a local unsynced draft
+      label,
+      queuedAt: new Date().toISOString(),
+      status: 'pending',
+      error: '',
+    });
+    await this.renderBadge();
+  },
+
+  // Local lookup used by manifest.html when the sender built/received with no
+  // signal and the server record cannot exist yet. This is presentation only;
+  // the queued batch remains the write authority on this phone.
+  async pendingManifest(manifestId) {
+    const entries = await this.qAll();
+    // Newest wins: an offline draft can have a later dispatch/receipt batch
+    // queued behind it, and the page should render the furthest local truth.
+    for (let i = entries.length - 1; i >= 0; i--) {
+      const e = entries[i];
+      if (e.kind === 'batch' && e.snapshot && e.snapshot.manifest &&
+          e.snapshot.manifest.id === manifestId) return e;
+    }
+    return null;
+  },
+
   // True when a TN.fetch/fetch rejection means "no network" (as opposed
   // to a server response we didn't like, which our code throws as Error).
   isNetworkError(err) {
@@ -177,7 +247,36 @@ const TNSync = {
       for (const entry of entries) {
         try {
           let res;
-          if (entry.kind === 'reading') {
+          if (entry.kind === 'container_event') {
+            res = await fetch(window.location.origin + '/api/collections/container_events/records', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': localStorage.getItem('tn_token')
+              },
+              body: JSON.stringify(entry.event)
+            });
+          } else if (entry.kind === 'kit_audit') {
+            res = await fetch(window.location.origin + '/api/collections/kit_audits/records', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': localStorage.getItem('tn_token')
+              },
+              body: JSON.stringify(entry.audit)
+            });
+          } else if (entry.kind === 'batch') {
+            // PocketBase executes this array in one SQLite transaction. No
+            // request can leave behind a half-received manifest.
+            res = await fetch(window.location.origin + '/api/batch', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': localStorage.getItem('tn_token')
+              },
+              body: JSON.stringify({ requests: entry.requests })
+            });
+          } else if (entry.kind === 'reading') {
             // Readings replay as multipart so the queued gauge photo
             // (stored as a Blob) can ride along; PocketBase casts the
             // string form values to the schema types.
@@ -238,11 +337,27 @@ const TNSync = {
           }
 
           let ok = res.ok;
+          if (!ok && entry.kind === 'batch' && entry.verify) {
+            // If the connection died after commit, replay sees duplicate
+            // pre-generated ids and the batch returns 400. Because the batch
+            // is atomic, a live parent status in the expected set proves every
+            // request landed on the earlier attempt.
+            const verifyUrl = window.location.origin +
+              '/api/collections/manifests/records/' + entry.verify.manifestId +
+              '?fields=id,status&_tn_verify=' + Date.now();
+            const check = await fetch(verifyUrl, {
+              headers: { 'Authorization': localStorage.getItem('tn_token') }
+            });
+            if (check.ok) {
+              const record = await check.json();
+              ok = (entry.verify.statuses || []).includes(record.status);
+            }
+          }
           if (!ok && res.status === 400) {
             // Duplicate pre-generated id = the server committed this one
             // on an earlier attempt. That's a success, not a failure.
             const data = await res.json().catch(() => ({}));
-            if (data.data && data.data.id) {
+            if (entry.kind !== 'batch' && data.data && data.data.id) {
               ok = true;
             } else {
               // Genuine validation rejection — park it, keep going.

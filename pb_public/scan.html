@@ -34,6 +34,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <script src="tn-auth.js"></script>
 <script src="tn-sync.js"></script>
+<script src="tn-containers.js"></script>
 <script defer src="vendor/alpine.min.js"></script>
 
 <style>
@@ -150,8 +151,14 @@
     </span>
   </header>
 
-  <label class="at" for="atLoc">I'm at:</label>
-  <select id="atLoc" x-model="atLoc">
+  <template x-if="kitCode">
+    <div class="panel">
+      <strong x-text="(kitAction === 'remove' ? 'Remove from ' : 'Add to ') + kitCode"></strong>
+      Scan the item tag. <a :href="'asset.html?code=' + encodeURIComponent(kitCode)">Back to the box/list fallback.</a>
+    </div>
+  </template>
+  <label class="at" for="atLoc" x-show="!kitCode">I'm at:</label>
+  <select id="atLoc" x-model="atLoc" x-show="!kitCode">
     <option value="">Just scanning (open the tag I point at)</option>
     <template x-for="loc in locations" :key="loc.id">
       <option :value="loc.id" x-text="loc.name"></option>
@@ -192,7 +199,8 @@
             <div class="wloc" x-text="verdictText(r)"></div>
           </div>
           <button x-show="r.verdict === 'mismatch'" :disabled="r.busy"
-                  @click="moveHere(r)" x-text="r.busy ? '…' : 'Move here'"></button>
+                  @click="moveHere(r)"
+                  x-text="r.busy ? '…' : (r.containerCode ? 'Open box' : 'Move here')"></button>
         </div>
       </template>
     </div>
@@ -212,6 +220,8 @@ function scanPage() {
   return {
     state: 'starting',   // starting | scanning | denied | nocamera
     atLoc: '',           // '' = single-scan mode; a location id = walk mode
+    kitCode: new URLSearchParams(location.search).get('kit') || '',
+    kitAction: new URLSearchParams(location.search).get('kit_action') || 'add',
     locations: [],
     rows: [],            // newest first: {tag, name, locName, locId, assetId, verdict, busy, bump}
     hint: '',
@@ -354,6 +364,21 @@ function scanPage() {
       if (!this.atLoc) {
         // Single-scan: this page's job is done
         this.stop();
+        // Box-first, item-second flow (ADR 0021). The box page confirms the
+        // membership change and keeps the no-camera list fallback available.
+        if (this.kitCode) {
+          location.href = 'asset.html?code=' + encodeURIComponent(this.kitCode) +
+            '&member=' + encodeURIComponent(tag) +
+            '&kit_action=' + encodeURIComponent(this.kitAction);
+          return;
+        }
+        // Manifest builder return path (ADR 0020). The builder saved its
+        // route/lines before opening the camera, so only the short tag code
+        // travels in the URL; no truck list is exposed or squeezed into it.
+        if (new URLSearchParams(location.search).get('manifest') === '1') {
+          location.href = 'manifests.html?add_code=' + encodeURIComponent(tag);
+          return;
+        }
         location.href = 'asset.html?code=' + encodeURIComponent(tag);
         return;
       }
@@ -373,7 +398,7 @@ function scanPage() {
         setTimeout(() => { existing.bump = false; }, 700);
         return;
       }
-      this.rows.unshift({ tag, name: '…', locName: '', locId: '', assetId: '',
+      this.rows.unshift({ tag, name: '…', locName: '', locId: '', assetId: '', containerCode: '',
                           verdict: 'pending', busy: false, bump: false });
       // IMPORTANT: mutate the row via the reactive array, not the raw
       // object we just pushed — Alpine can't see writes to the raw
@@ -382,7 +407,7 @@ function scanPage() {
       try {
         const filter = encodeURIComponent(`tag_code='${tag.replace(/'/g, "\\'")}'`);
         const res = await TN.fetch(
-          `${PB}/api/collections/assets/records?filter=(${filter})&expand=item,current_location&perPage=1`
+          `${PB}/api/collections/assets/records?filter=(${filter})&expand=item,current_location,container_id.item,container_id.current_location&perPage=1`
         );
         if (!res.ok) throw new TypeError('offline');
         const items = (await res.json()).items;
@@ -393,10 +418,11 @@ function scanPage() {
         }
         const a = items[0];
         row.assetId = a.id;
-        row.locId = a.current_location || '';
+        row.locId = TNContainers.effectiveLocationId(a);
         row.name = a.expand?.item?.name || 'Unknown item';
-        row.locName = a.expand?.current_location?.name || '';
-        row.verdict = (a.current_location === this.atLoc) ? 'ok' : 'mismatch';
+        row.locName = TNContainers.effectiveLocation(a)?.name || '';
+        row.containerCode = a.expand?.container_id?.tag_code || '';
+        row.verdict = (row.locId === this.atLoc) ? 'ok' : 'mismatch';
       } catch (err) {
         row.verdict = 'offline';
         row.name = tag;
@@ -407,6 +433,10 @@ function scanPage() {
     // declared — the highest-confidence correction TrenchNote ever gets.
     // A normal move: ledger first, pre-generated id, offline-queueable.
     async moveHere(row) {
+      if (row.containerCode) {
+        location.href = 'asset.html?code=' + encodeURIComponent(row.containerCode);
+        return;
+      }
       row.busy = true;
       const movement = {
         id: TNSync.genId(),

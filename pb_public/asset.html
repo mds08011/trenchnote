@@ -25,6 +25,7 @@
 <script src="tn-auth.js"></script>
 <script src="tn-sync.js"></script>
 <script src="tn-inspect.js"></script>
+<script src="tn-containers.js"></script>
 <script defer src="vendor/alpine.min.js"></script>
 
 <style>
@@ -104,6 +105,11 @@
   }
   .plate .dur { margin-top: 8px; font-size: 14px; color: var(--steel); }
   .plate .dur strong { color: var(--ink); }
+  .transit-note {
+    margin-top: 16px; padding: 13px 14px; border: 2px solid #8a5a00;
+    background: #fff7e8; color: #6d4700; font-weight: 800;
+  }
+  .transit-note a { color: inherit; }
 
   /* ---- Move form -------------------------------------------------- */
   .move { margin-top: 26px; }
@@ -286,6 +292,20 @@
   }
   .error { margin-top: 14px; padding: 14px; background: #fdecea; color: #a1160a; font-weight: 600; }
   .loading { color: var(--steel); padding: 40px 0; text-align: center; }
+  .kit { margin-top: 22px; padding: 16px; border: 2px solid var(--ink); background: #fff; }
+  .kit h2 { margin-top: 0; }
+  .kit-row { padding: 12px 0; border-bottom: 1px solid #d7d9dc; }
+  .kit-row:last-child { border-bottom: 0; }
+  .kit-row .status { display: inline-block; margin-left: 7px; padding: 3px 7px;
+    font-size: 12px; font-weight: 800; text-transform: uppercase; background: #eceef0; }
+  .kit-row .status.present { background: #dff3e5; color: #17622f; }
+  .kit-row .status.missing { background: #fdecea; color: #a1160a; }
+  .kit-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .kit-actions button { min-height: 48px; border: 2px solid var(--ink); background: #fff;
+    color: var(--ink); font-weight: 800; cursor: pointer; }
+  .kit-actions button.chosen { background: var(--ink); color: #fff; }
+  .in-box { margin: 12px 0; padding: 12px; background: #eef2f5; font-weight: 750; }
+  .kit-missing { margin-top: 10px; padding: 10px; border-left: 5px solid #a1160a; background: #fdecea; }
 </style>
 </head>
 <body>
@@ -348,19 +368,131 @@
         </div>
       </template>
 
-      <!-- The location plate -->
+      <template x-if="asset.container_id">
+        <div class="in-box">
+          In: <a :href="assetUrl(containerAsset)"
+                 x-text="containerLabel(containerAsset)"></a>
+          â†’ <span x-text="effectiveLocation?.name || 'UNASSIGNED'"></span>
+        </div>
+      </template>
+
+      <!-- The effective location plate. Loose assets and boxes use their
+           own cache; contents inherit the box's current_location. -->
+      <!-- Transit is derived from an open manifest (ADR 0020). The ledger
+           location deliberately stays at the source until receipt. -->
+      <template x-for="line in manifestLines" :key="line.id">
+        <div class="transit-note">
+          In transit on <a :href="'manifest.html?id=' + line.manifest"
+            x-text="'Manifest #' + line.manifest.slice(0,6).toUpperCase()"></a>
+          <span x-text="' · ' + (line.expand?.manifest?.expand?.from_location?.name || '?') +
+            ' → ' + (line.expand?.manifest?.expand?.to_location?.name || '?')"></span>
+        </div>
+      </template>
       <div class="plate">
-        <div class="eyebrow">Current location</div>
-        <div class="loc" x-text="asset.expand?.current_location?.name || 'UNASSIGNED'"></div>
+        <div class="eyebrow" x-text="asset.container_id ? 'Location via gang box' : 'Current location'"></div>
+        <div class="loc" x-text="effectiveLocation?.name || 'UNASSIGNED'"></div>
         <div class="dur" x-show="daysHere !== null">
           Here for <strong x-text="daysHere === 0 ? 'less than a day' : daysHere + (daysHere === 1 ? ' day' : ' days')"></strong>
         </div>
         <!-- Current job is DERIVED: the current location's job_code
              (ADR 0012). No stored copy to drift. -->
-        <div class="dur" x-show="asset.expand?.current_location?.job_code">
-          Charging to job <strong x-text="asset.expand?.current_location?.job_code"></strong>
+        <div class="dur" x-show="effectiveLocation?.job_code">
+          Charging to job <strong x-text="effectiveLocation?.job_code"></strong>
         </div>
       </div>
+
+      <!-- Gang-box scan surface (ADR 0021). The box remains an ordinary
+           asset for identity and moves; this panel adds only manifest,
+           membership, and checklist audit behavior. -->
+      <template x-if="asset.is_container">
+        <section class="kit">
+          <h2>Box manifest <span class="meta" x-text="'Â· ' + contents.length + ' inside'"></span></h2>
+
+          <template x-for="member in contents" :key="member.id">
+            <div class="kit-row">
+              <a :href="assetUrl(member)"><strong x-text="containerLabel(member)"></strong></a>
+              <span class="status" :class="auditStatus(member.id)"
+                    x-text="auditStatus(member.id) || 'not checked'"></span>
+              <template x-if="auditOpen">
+                <div class="kit-actions">
+                  <button :class="{ chosen: auditChoices[member.id] === 'present' }"
+                          @click="auditChoices[member.id] = 'present'">âœ“ Present</button>
+                  <button :class="{ chosen: auditChoices[member.id] === 'missing' }"
+                          @click="auditChoices[member.id] = 'missing'">âœ• Missing</button>
+                </div>
+              </template>
+              <button class="resv-cancel" x-show="!auditOpen"
+                      @click="changeMembership(member, 'removed', kitRemoveLocation)">
+                Remove from box
+              </button>
+            </div>
+          </template>
+          <p class="meta" x-show="!contents.length">This box is empty.</p>
+
+          <template x-if="latestMissing.length">
+            <div class="kit-missing">
+              <strong>Missing at last audit:</strong>
+              <span x-text="latestMissing.map(r => resultAssetLabel(r.asset_id)).join(', ')"></span>
+            </div>
+          </template>
+          <p class="meta" x-show="latestAudit"
+             x-text="'Last audited ' + fmtWhen(latestAudit.performed_at) + ' Â· ' +
+                     (latestAudit.performed_by || 'unspecified')"></p>
+
+          <template x-if="!auditOpen">
+            <button class="go secondary" :disabled="!contents.length || busy"
+                    @click="beginAudit()">Audit contents</button>
+          </template>
+          <template x-if="auditOpen">
+            <div>
+              <button class="go" :disabled="!auditComplete || busy"
+                      @click="submitAudit()"
+                      x-text="busy ? 'Savingâ€¦' : 'Save audit'"></button>
+              <button class="resv-cancel" @click="auditOpen = false; auditChoices = {}">Cancel audit</button>
+            </div>
+          </template>
+
+          <h2 style="margin-top:22px">Add or remove items</h2>
+          <p class="meta">Scan this box, then scan the item. No camera? Choose it from the list.</p>
+          <div class="kit-actions">
+            <a class="go secondary" style="text-align:center; text-decoration:none"
+               :href="'scan.html?kit=' + encodeURIComponent(code) + '&kit_action=add'">ðŸ“· Scan to add</a>
+            <a class="go secondary" style="text-align:center; text-decoration:none"
+               :href="'scan.html?kit=' + encodeURIComponent(code) + '&kit_action=remove'">ðŸ“· Scan to remove</a>
+          </div>
+
+          <template x-if="scannedMember">
+            <div class="in-box">
+              Scanned <strong x-text="containerLabel(scannedMember)"></strong>
+              <button class="go" style="margin-top:8px"
+                      :disabled="busy || (scannedAction === 'add' && scannedMember.container_id)"
+                      @click="changeMembership(scannedMember,
+                        scannedAction === 'remove' ? 'removed' : 'added', kitRemoveLocation)"
+                      x-text="(scannedAction === 'remove' ? 'Remove from ' : 'Add to ') + code"></button>
+            </div>
+          </template>
+
+          <select x-model="kitPick" aria-label="Item list fallback">
+            <option value="">Choose a loose item to addâ€¦</option>
+            <template x-for="candidate in looseAssets" :key="candidate.id">
+              <option :value="candidate.id" x-text="containerLabel(candidate)"></option>
+            </template>
+          </select>
+          <button class="go secondary" :disabled="!kitPick || busy"
+                  @click="changeMembership(assetById(kitPick), 'added', effectiveLocationId)">
+            Add selected item
+          </button>
+
+          <label class="field-label" for="removeAt">Removed items materialize at</label>
+          <select id="removeAt" x-model="kitRemoveLocation">
+            <template x-for="loc in locations" :key="loc.id">
+              <option :value="loc.id" x-text="loc.name"></option>
+            </template>
+          </select>
+          <div class="flash" x-show="kitFlash" x-text="kitFlash"></div>
+          <div class="error" x-show="kitError" x-text="kitError"></div>
+        </section>
+      </template>
 
       <!-- Compliance badge, YELLOW/GREEN tiers, plus the quiet link for
            assets with no requirements (most of them). Same panel. -->
@@ -518,8 +650,8 @@
       </template>
 
       <!-- Move action -->
-      <div class="move">
-        <h2>Move this asset</h2>
+      <div class="move" x-show="!asset.container_id">
+        <h2 x-text="asset.is_container ? 'Move box' : 'Move this asset'"></h2>
         <select x-model="moveTo" aria-label="Destination">
           <option value="" disabled selected>Choose destination…</option>
           <template x-for="loc in destinations" :key="loc.id">
@@ -549,7 +681,7 @@
         </template>
 
         <button class="go" :disabled="!moveTo || busy" @click="move()"
-                x-text="busy ? 'Saving…' : 'Move here'"></button>
+                x-text="busy ? 'Saving…' : (asset.is_container ? 'Move whole box' : 'Move here')"></button>
 
         <div class="flash" x-show="flash" x-text="flash"></div>
         <div class="error" x-show="moveError" x-text="moveError"></div>
@@ -572,26 +704,21 @@
         </template>
       </div>
 
-      <!-- Move history: this asset's journey through the append-only
-           ledger, collapsed by default to keep the scan page focused on
-           the current state and the actions. -->
-      <template x-if="moveHistory.length">
+      <!-- Effective location history merges direct movements with box
+           membership periods and qualifying box movements. -->
+      <template x-if="historyRows.length">
         <div class="hist">
           <template x-if="!showHistory">
             <button class="resv-toggle" @click="showHistory = true"
-                    style="margin-top:10px">🕑 Move history →</button>
+                    style="margin-top:10px">🕑 Location history →</button>
           </template>
           <template x-if="showHistory">
             <div>
-              <h2>Move history</h2>
-              <template x-for="m in moveHistory" :key="m.id">
+              <h2>Location history</h2>
+              <template x-for="row in historyRows" :key="row.kind + '-' + (row.move?.id || row.event?.id)">
                 <div class="row">
-                  <span class="route">
-                    <span x-text="m.expand?.from_location?.name || 'outside'"></span>
-                    → <strong x-text="m.expand?.to_location?.name || '?'"></strong>
-                  </span>
-                  <span class="meta"
-                        x-text="fmtWhen(m.created) + (m.moved_by && m.moved_by !== 'unspecified' ? ' · ' + m.moved_by : '')"></span>
+                  <span class="route" x-text="historyText(row)"></span>
+                  <span class="meta" x-text="historyMeta(row)"></span>
                 </div>
               </template>
             </div>
@@ -650,7 +777,7 @@
 
       <!-- Reserve: collapsed by default to keep the scan page focused
            on the two field questions (where is it / move it) -->
-      <div class="resv">
+      <div class="resv" x-show="!asset.is_container">
         <template x-if="!showReserve">
           <button class="resv-toggle" @click="showReserve = true">
             Need this later? Reserve it →
@@ -707,6 +834,10 @@ function assetPage() {
     reservations: [],
     // This asset's movement ledger — the journey (collapsed by default).
     moveHistory: [],
+    historyRows: [],
+    containerEvents: [],
+    // Open transfer-manifest lines are a derived overlay, not a location.
+    manifestLines: [],
     showHistory: false,
     // Meter readings (ADR 0012). readingValue/-Photo ride along with the
     // move; soloValue/-Photo belong to the standalone month-end record.
@@ -745,10 +876,70 @@ function assetPage() {
     resvNote: '',
     resvFlash: '',
     resvError: '',
+    // Gang box state (ADR 0021). Loaded only when the scanned asset is a
+    // container, so ordinary assets pay no manifest-list request.
+    contents: [],
+    kitAudits: [],
+    allAssets: [],
+    kitPick: '',
+    kitRemoveLocation: '',
+    kitFlash: '',
+    kitError: '',
+    auditOpen: false,
+    auditChoices: {},
+    scannedMember: null,
+    scannedAction: new URLSearchParams(location.search).get('kit_action') || '',
 
-    // Destinations = every location except the current one
+    get containerAsset() {
+      return TNContainers.container(this.asset);
+    },
+    get effectiveLocationId() {
+      return TNContainers.effectiveLocationId(this.asset);
+    },
+    get effectiveLocation() {
+      return TNContainers.effectiveLocation(this.asset);
+    },
+
+    // Destinations = every location except the effective current one.
+    // Contained assets hide the move form altogether; a member must first
+    // materialize through a removal event.
     get destinations() {
-      return this.locations.filter(l => l.id !== this.asset?.current_location);
+      return this.locations.filter(l => l.id !== this.effectiveLocationId);
+    },
+
+    get latestAudit() {
+      return this.kitAudits[0] || null;
+    },
+    get latestMissing() {
+      return (this.latestAudit?.results || []).filter(r => r.result === 'missing');
+    },
+    get looseAssets() {
+      return this.allAssets.filter(a => a.id !== this.asset?.id &&
+        !a.is_container && !a.container_id);
+    },
+    get auditComplete() {
+      return this.contents.length > 0 &&
+        this.contents.every(a => this.auditChoices[a.id] === 'present' ||
+                                 this.auditChoices[a.id] === 'missing');
+    },
+
+    assetById(id) {
+      return this.allAssets.find(a => a.id === id) || null;
+    },
+    assetUrl(a) {
+      return a ? 'asset.html?code=' + encodeURIComponent(a.tag_code) : '#';
+    },
+    containerLabel(a) {
+      if (!a) return 'Unknown asset';
+      return a.tag_code + ' · ' + (a.expand?.item?.name || 'Unknown item');
+    },
+    auditStatus(assetId) {
+      const row = (this.latestAudit?.results || []).find(r => r.asset_id === assetId);
+      return row?.result || '';
+    },
+    resultAssetLabel(assetId) {
+      const a = this.assetById(assetId);
+      return a ? this.containerLabel(a) : assetId;
     },
 
     // Whether this KIND of thing has a gauge comes from the catalog
@@ -780,6 +971,26 @@ function assetPage() {
       // UTC instant too, so its UTC date is a fine "entered" date.
       return new Date(pbDate).toLocaleDateString(undefined,
         { month: 'short', day: 'numeric', timeZone: 'UTC' });
+    },
+
+    historyText(row) {
+      if (row.kind === 'added') {
+        return 'Added to ' + this.containerLabel(row.container) +
+          ' at ' + (row.to?.name || '?');
+      }
+      if (row.kind === 'removed') {
+        return 'Removed from ' + this.containerLabel(row.container) +
+          ' at ' + (row.to?.name || '?');
+      }
+      const route = (row.from?.name || 'outside') + ' → ' + (row.to?.name || '?');
+      return row.kind === 'via_container'
+        ? route + ' · via ' + this.containerLabel(row.container)
+        : route;
+    },
+    historyMeta(row) {
+      const who = row.move?.moved_by || row.event?.by || '';
+      return this.fmtWhen(row.created) +
+        (who && who !== 'unspecified' ? ' · ' + who : '');
     },
 
     gaugeUrl(r) {
@@ -844,12 +1055,11 @@ function assetPage() {
       }
       try {
         // 1. Find the asset by its tag code. `filter` is PocketBase's query
-        //    syntax; `expand=item,current_location` pulls the related item
-        //    and location records in the same request (they arrive under
-        //    asset.expand.*), saving two round-trips on a slow connection.
+        //    syntax; the nested container expand supplies the one authoritative
+        //    effective location for a member without another round-trip.
         const filter = encodeURIComponent(`tag_code='${this.code.replace(/'/g, "\\'")}'`);
         const res = await TN.fetch(
-          `${PB}/api/collections/assets/records?filter=(${filter})&expand=item,current_location&perPage=1`
+          `${PB}/api/collections/assets/records?filter=(${filter})&expand=item,current_location,container_id.item,container_id.current_location&perPage=1`
         );
         if (!res.ok) throw new Error(`API error ${res.status}`);
         const data = await res.json();
@@ -863,20 +1073,48 @@ function assetPage() {
         // 2. Load all locations for the destination dropdown.
         const locRes = await TN.fetch(`${PB}/api/collections/locations/records?sort=name&perPage=200`);
         this.locations = (await locRes.json()).items;
+        this.kitRemoveLocation = this.effectiveLocationId || this.locations[0]?.id || '';
 
-        // 3. This asset's recent movements, newest-first, with both
-        //    locations expanded. items[0] gives "how long it's been here"
-        //    (time since the latest move, falling back to the asset's own
-        //    created date if it has never moved); the whole list feeds the
-        //    collapsible move-history section below.
+        // 3. Direct movements plus membership periods. A wrench's own
+        //    ledger alone cannot answer where it went while riding in a box,
+        //    so container moves inside each added→removed period are merged
+        //    into one derived history (ADR 0021).
         const mvFilter = encodeURIComponent(`asset='${this.asset.id}'`);
-        const mvRes = await TN.fetch(
-          `${PB}/api/collections/movements/records?filter=(${mvFilter})&sort=-created&perPage=15&expand=from_location,to_location`
-        );
+        const ceFilter = encodeURIComponent(`asset_id='${this.asset.id}'`);
+        const [mvRes, ceRes] = await Promise.all([
+          TN.fetch(`${PB}/api/collections/movements/records?filter=(${mvFilter})&sort=-created&perPage=100&expand=from_location,to_location`),
+          TN.fetch(`${PB}/api/collections/container_events/records?filter=(${ceFilter})&sort=created&perPage=200&expand=container_id.item,location`),
+        ]);
         this.moveHistory = (await mvRes.json()).items;
-        const mv = this.moveHistory[0];
-        const since = new Date(mv ? mv.created : this.asset.created);
+        this.containerEvents = (await ceRes.json()).items;
+
+        const containerIds = Array.from(new Set(this.containerEvents.map(e => e.container_id)));
+        let containerMoves = [];
+        if (containerIds.length) {
+          const cmFilter = encodeURIComponent(
+            containerIds.map(id => `asset='${id}'`).join(' || '));
+          const cmRes = await TN.fetch(
+            `${PB}/api/collections/movements/records?filter=(${cmFilter})&sort=-created&perPage=500&expand=from_location,to_location`
+          );
+          if (!cmRes.ok) throw new Error('container history API error ' + cmRes.status);
+          containerMoves = (await cmRes.json()).items;
+        }
+        this.historyRows = TNContainers.locationHistory(
+          this.moveHistory, this.containerEvents, containerMoves);
+        const since = new Date(this.historyRows[0]?.created || this.asset.created);
         this.daysHere = Math.floor((Date.now() - since) / 86400000);
+
+        // Any truck manifest currently carrying this asset. The relation
+        // filter and nested expand return the parent route in one read.
+        const manifestSubjects = [this.asset.id];
+        if (this.asset.container_id) manifestSubjects.push(this.asset.container_id);
+        const mfFilter = encodeURIComponent(
+          `(${manifestSubjects.map(id => `asset='${id}'`).join(' || ')}) && manifest.status='in_transit'`);
+        const mfRes = await TN.fetch(
+          `${PB}/api/collections/manifest_lines/records?filter=(${mfFilter})&perPage=20&expand=manifest.from_location,manifest.to_location`
+        );
+        if (!mfRes.ok) throw new Error('manifest API error ' + mfRes.status);
+        this.manifestLines = (await mfRes.json()).items;
 
         // 4. Reservations on this asset, soonest first. Past ones are
         //    filtered out client-side (see upcomingReservations).
@@ -917,6 +1155,41 @@ function assetPage() {
         this.requirements = (await reqRes.json()).items;
         this.inspections = (await inspRes.json()).items;
 
+        // 7. A box pays for its manifest/audit reads; every ordinary asset
+        //    skips them. allAssets supplies the no-camera list fallback and
+        //    labels for a member removed as missing in the latest audit.
+        if (this.asset.is_container) {
+          const memberFilter = encodeURIComponent(`container_id='${this.asset.id}'`);
+          const auditFilter = encodeURIComponent(`container_id='${this.asset.id}'`);
+          const [contentsRes, auditsRes, assetsRes] = await Promise.all([
+            TN.fetch(`${PB}/api/collections/assets/records?filter=(${memberFilter})&sort=tag_code&perPage=500&expand=item,current_location,container_id.current_location`),
+            TN.fetch(`${PB}/api/collections/kit_audits/records?filter=(${auditFilter})&sort=-performed_at,-created&perPage=20`),
+            TN.fetch(`${PB}/api/collections/assets/records?sort=tag_code&perPage=500&expand=item,current_location,container_id.current_location`),
+          ]);
+          if (!contentsRes.ok || !auditsRes.ok || !assetsRes.ok) {
+            throw new Error('gang-box API error');
+          }
+          this.contents = (await contentsRes.json()).items;
+          this.kitAudits = (await auditsRes.json()).items;
+          this.allAssets = (await assetsRes.json()).items;
+
+          const memberCode = new URLSearchParams(location.search).get('member');
+          if (memberCode) {
+            this.scannedMember = this.allAssets.find(a =>
+              a.tag_code.toLowerCase() === memberCode.toLowerCase()) || null;
+            if (!this.scannedMember) this.kitError = 'That scanned tag is not in TrenchNote.';
+            else if (this.scannedAction === 'remove' &&
+                     this.scannedMember.container_id !== this.asset.id) {
+              this.kitError = this.scannedMember.tag_code + ' is not in this box.';
+              this.scannedMember = null;
+            } else if (this.scannedAction !== 'remove' &&
+                       (this.scannedMember.is_container || this.scannedMember.container_id)) {
+              this.kitError = 'Only a loose, non-container asset can be added.';
+              this.scannedMember = null;
+            }
+          }
+        }
+
         this.state = 'ready';
       } catch (err) {
         this.state = 'error';
@@ -924,7 +1197,121 @@ function assetPage() {
       }
     },
 
+    beginAudit() {
+      this.auditChoices = {};
+      this.kitError = '';
+      this.kitFlash = '';
+      this.auditOpen = true;
+    },
+
+    async changeMembership(member, action, atLocation) {
+      if (!member || !atLocation) {
+        this.kitError = 'Choose the item and materialization location.';
+        return;
+      }
+      this.busy = true;
+      this.kitError = '';
+      this.kitFlash = '';
+      if (this.movedBy) localStorage.setItem('tn_name', this.movedBy);
+      const event = {
+        id: TNSync.genId(),
+        asset_id: member.id,
+        container_id: this.asset.id,
+        action,
+        by: this.movedBy || 'unspecified',
+        // Added items must be where the box is. Removed items default there
+        // but may materialize at another selected location.
+        location: action === 'added' ? this.effectiveLocationId : atLocation,
+      };
+      try {
+        const res = await TN.fetch(`${PB}/api/collections/container_events/records`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(event),
+        });
+        if (!res.ok) throw new Error('membership rejected (' + res.status + ')');
+        this.kitFlash = action === 'added'
+          ? '✓ Added ' + member.tag_code
+          : '✓ Removed ' + member.tag_code;
+        this.scannedMember = null;
+        this.kitPick = '';
+        history.replaceState(null, '', 'asset.html?code=' + encodeURIComponent(this.code));
+        await this.load();
+      } catch (err) {
+        if (TNSync.isNetworkError(err)) {
+          await TNSync.enqueueContainerEvent(event,
+            (action === 'added' ? 'Add ' : 'Remove ') + member.tag_code +
+            (action === 'added' ? ' to ' : ' from ') + this.code);
+          if (action === 'added') {
+            member.container_id = this.asset.id;
+            member.current_location = '';
+            this.contents.push(member);
+          } else {
+            this.contents = this.contents.filter(a => a.id !== member.id);
+            member.container_id = '';
+            member.current_location = atLocation;
+          }
+          this.kitFlash = '✓ Saved on this phone — will sync when signal returns';
+          this.scannedMember = null;
+          this.kitPick = '';
+        } else {
+          this.kitError = 'Could not change box contents: ' + err.message;
+        }
+      } finally {
+        this.busy = false;
+      }
+    },
+
+    async submitAudit() {
+      if (!this.auditComplete) return;
+      this.busy = true;
+      this.kitError = '';
+      this.kitFlash = '';
+      if (this.movedBy) localStorage.setItem('tn_name', this.movedBy);
+      const audit = {
+        id: TNSync.genId(),
+        container_id: this.asset.id,
+        performed_by: this.movedBy || 'unspecified',
+        performed_at: new Date().toISOString().replace('T', ' '),
+        results: this.contents.map(a => ({
+          asset_id: a.id,
+          result: this.auditChoices[a.id],
+        })),
+      };
+      try {
+        const res = await TN.fetch(`${PB}/api/collections/kit_audits/records`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(audit),
+        });
+        if (!res.ok) throw new Error('audit rejected (' + res.status + ')');
+        this.auditOpen = false;
+        this.auditChoices = {};
+        this.kitFlash = '✓ Audit saved';
+        await this.load();
+      } catch (err) {
+        if (TNSync.isNetworkError(err)) {
+          await TNSync.enqueueKitAudit(audit, 'Audit ' + this.code);
+          const missingIds = new Set(audit.results
+            .filter(r => r.result === 'missing').map(r => r.asset_id));
+          this.contents = this.contents.filter(a => !missingIds.has(a.id));
+          this.kitAudits.unshift({ ...audit, created: audit.performed_at });
+          this.auditOpen = false;
+          this.auditChoices = {};
+          this.kitFlash = '✓ Audit saved on this phone — will sync when signal returns';
+        } else {
+          this.kitError = 'Could not save audit: ' + err.message;
+        }
+      } finally {
+        this.busy = false;
+      }
+    },
+
     async move() {
+      if (this.asset.container_id) {
+        this.moveError = 'Remove this item from its gang box before moving it.';
+        return;
+      }
       this.busy = true;
       this.flash = '';
       this.moveError = '';
@@ -939,7 +1326,7 @@ function assetPage() {
       const movement = {
         id: TNSync.genId(),
         asset: this.asset.id,
-        from_location: this.asset.current_location || null,
+        from_location: this.effectiveLocationId || null,
         to_location: this.moveTo,
         moved_by: this.movedBy || 'unspecified'
       };

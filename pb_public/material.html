@@ -92,6 +92,8 @@
   /* A negative balance is a data error, not information — make it look
      like one. */
   .stock-row.neg .qty, .stock-row.neg .loc { color: #a1160a; }
+  .transit-note { margin-top:14px; padding:12px; border:2px solid #8a5a00; background:#fff7e8; color:#6d4700; font-weight:800; }
+  .transit-note a { color:inherit; }
   .neg-warn {
     padding: 10px 16px; font-size: 13px; font-weight: 600;
     background: #fdecea; color: #a1160a;
@@ -205,6 +207,18 @@
         Item #<span x-text="item.item_code"></span>
       </p>
       <span class="badge">Bulk material</span>
+
+      <!-- Manifest-derived transit (ADR 0020). These counts remain part of
+           source ledger stock until the receiver confirms the truck. -->
+      <template x-for="line in manifestLines" :key="line.id">
+        <div class="transit-note">
+          <span x-text="line.sent_quantity + ' in transit on '"></span>
+          <a :href="'manifest.html?id=' + line.manifest"
+             x-text="'Manifest #' + line.manifest.slice(0,6).toUpperCase()"></a>
+          <span x-text="' · ' + (line.expand?.manifest?.expand?.from_location?.name || '?') +
+            ' → ' + (line.expand?.manifest?.expand?.to_location?.name || '?')"></span>
+        </div>
+      </template>
 
       <!-- Stock on hand, derived from the ledger on every load -->
       <div class="plate">
@@ -356,6 +370,7 @@ function materialPage() {
     item: null,
     locations: [],
     movements: [],
+    manifestLines: [],
     fromLoc: '',
     toLoc: '',
     qty: null,
@@ -452,18 +467,21 @@ function materialPage() {
         return;
       }
       try {
-        const [itemRes, locRes, mvRes] = await Promise.all([
+        const mfFilter = encodeURIComponent(`item='${this.id}' && manifest.status='in_transit'`);
+        const [itemRes, locRes, mvRes, mfRes] = await Promise.all([
           TN.fetch(`${PB}/api/collections/items/records/${this.id}`),
           TN.fetch(`${PB}/api/collections/locations/records?sort=name&perPage=200`),
           // Every bulk movement of THIS item. perPage caps at 500 — plenty
           // for years of a single material; revisit with paging if a ledger
           // ever outgrows it.
           TN.fetch(`${PB}/api/collections/movements/records?filter=(item='${this.id}')&sort=-created&perPage=500`),
+          TN.fetch(`${PB}/api/collections/manifest_lines/records?filter=(${mfFilter})&sort=created&perPage=100&expand=manifest.from_location,manifest.to_location`),
         ]);
-        if (!itemRes.ok) throw new Error('material not found (' + itemRes.status + ')');
+        if (!itemRes.ok || !mfRes.ok) throw new Error('material not found (' + (itemRes.ok ? mfRes.status : itemRes.status) + ')');
         this.item = await itemRes.json();
         this.locations = (await locRes.json()).items;
         this.movements = (await mvRes.json()).items;
+        this.manifestLines = (await mfRes.json()).items;
         this.state = 'ready';
       } catch (err) {
         this.state = 'error';

@@ -66,7 +66,7 @@ PocketBase serves the frontend and API from the same origin. Frontend code uses
 ## Current collections
 
 The complete schema is reproducible from the ordered migrations in
-`pb_migrations/`. There are ten application collections.
+`pb_migrations/`. There are fourteen application collections.
 
 | Collection | CURRENT purpose | Authority and mutability |
 | --- | --- | --- |
@@ -80,6 +80,10 @@ The complete schema is reproducible from the ordered migrations in
 | `inspections` | Pass, fail, or removed-from-service observation | Authoritative ledger; create-only for authenticated users; superusers retain administrative access |
 | `condition_reports` | Photographed damage, wear, or condition observation | Authoritative ledger; create-only for authenticated users; superusers retain administrative access |
 | `condition_resolutions` | Human-stated outcome for a condition report | Authoritative ledger; create-only for authenticated users; superusers retain administrative access |
+| `manifests` | Two-site truckload handshake with forward-only status | Mutable only through authenticated forward workflow transitions |
+| `manifest_lines` | Sent asset/bulk facts plus receiving quantity/note | Draft lines editable/removable; sent shape freezes at dispatch; receipt fields update in transit |
+| `container_events` | Gang Box membership add/remove fact | Authoritative ledger; create-only for authenticated users |
+| `kit_audits` | Dated Gang Box contents checklist | Authoritative ledger; create-only for authenticated users |
 
 The server enforces the asset-versus-bulk movement shape and requires an
 inspection requirement, when supplied, to belong to the inspected asset.
@@ -100,6 +104,8 @@ inspection requirement, when supplied, to belong to the inspected asset.
   rows and use server entry time.
 - Receiving photos, packing slips, vendor text, and OS&D notes are evidence on
   the receive-shaped movement itself, not a separate delivery record.
+- A manifest and its lines are the authoritative sender/receiver observations;
+  the resulting movements remain authoritative for inventory.
 
 **CURRENT derived or cached answers:**
 
@@ -114,6 +120,8 @@ inspection requirement, when supplied, to belong to the inspected asset.
   resolution; no damaged/open flag is stored.
 - Reservation status is not derived; a person explicitly fulfills or cancels
   the claim.
+- In-transit standing is derived from manifest status; dispatch does not create
+  a movement or virtual location.
 
 No executed-record signature, frozen snapshot, evidence hash, correction link,
 or general record-locking mechanism exists in TrenchNote today.
@@ -139,6 +147,9 @@ or general record-locking mechanism exists in TrenchNote today.
 8. Assets with inspection requirements display a derived attention badge and
    accept inspection observations. The module records visibility; it does not
    assign, approve, escalate, or certify a safety program.
+9. A sender builds and dispatches a mixed transfer manifest; a receiving user
+   confirms every line in one transaction, with shortfalls held at
+   `Missing in transfer`.
 
 ## Current offline behavior
 
@@ -152,8 +163,9 @@ request fails:
 
 - movements, including an optional follow-up asset-location cache patch;
 - meter readings and their optional photo;
-- inspections and their optional photo; and
-- delivery movements with packing-slip and damage-photo blobs.
+- inspections and their optional photo;
+- delivery movements with packing-slip and damage-photo blobs; and
+- manifest dispatch/receipt batches with a local render snapshot.
 
 Each queued ledger record carries a pre-generated PocketBase ID so replay is
 idempotent. Replay is FIFO and pauses visibly on authentication or validation
@@ -169,12 +181,13 @@ writes for one authoritative PocketBase instance.
 
 - client-generated CSV of the inspection ledger;
 - browser-printable receiving reports, including evidence images;
+- browser-printable transfer manifests;
 - browser-printable QR label sheets; and
 - authenticated reads through PocketBase REST API contract v1.
 
 PocketBase realtime subscriptions are part of the documented API surface, but
 the core UI does not use them as an ecosystem event bus. There is no versioned
-handoff manifest, project export, lifecycle-event envelope, or import
+**cross-product** handoff manifest, project export, lifecycle-event envelope, or import
 provenance record.
 
 **CURRENT external side effect:** after a committed movement transfers

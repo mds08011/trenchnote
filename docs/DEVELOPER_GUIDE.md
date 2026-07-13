@@ -32,6 +32,8 @@ trenchnote/
 │   ├── asset.html          # QR landing page: view, move, reserve one asset
 │   ├── material.html       # bulk item: derived stock per location, move quantities
 │   ├── receiving.html      # print-friendly receiving report (ADR 0013)
+│   ├── manifests.html      # build a transfer manifest (list or scanner)
+│   ├── manifest.html       # print, dispatch, and receive one manifest
 │   ├── labels.html         # printable QR sheet for all assets
 │   ├── scan.html           # in-app QR scanner + inventory walk mode
 │   ├── login.html          # sign-in; stores the PocketBase token in localStorage
@@ -47,7 +49,7 @@ trenchnote/
 
 ## Data model
 
-Ten collections, created by the migrations in `pb_migrations/` (one file
+Fourteen collections, created by the migrations in `pb_migrations/` (one file
 per collection, plus later alterations). PocketBase applies pending migrations
 automatically at startup, in filename order — a fresh clone reproduces the
 whole database on first `serve`.
@@ -232,6 +234,45 @@ purpose is dispute evidence, so a text-only report is incomplete. It does not
 grow repair work orders, maintenance schedules, labor/parts/cost tracking, or
 return-to-service approval; report and resolve are the entire lifecycle.
 
+### manifests + manifest_lines — two-sided transfers (ADR 0020)
+
+`manifests` stores the route and human handshake:
+`from_location`, `to_location`, `created_by` (the signed-in PocketBase account),
+free-text `driver_name`, `status`, and optional `received_by`. The server API
+rule is the workflow boundary: only
+`draft → in_transit → received | received_with_discrepancies` is allowed.
+Route, driver, and creator cannot change during a transition; receipt must set
+`received_by` to the account making that request.
+
+`manifest_lines` uses the movement union. An asset line sets `asset`, keeps
+`item` empty, has `quantity = 0`, and sends one whole unit. A bulk line sets
+`item`, keeps `asset` empty, and has positive equal `quantity` and
+`sent_quantity`. The shape and sent fact freeze at dispatch. While the parent
+is in transit, a receiver may set only `received_quantity` and
+`condition_note`. PocketBase number fields have a zero empty value; the parent
+status distinguishes pending zero from a confirmed zero.
+
+Dispatch writes no movement. `asset.html` and `material.html` derive their
+“in transit on Manifest #…” overlays by filtering lines whose parent status is
+`in_transit`; the ordinary asset cache and bulk ledger sum still show the
+source until receipt. This avoids a synthetic transit location and leaves every
+existing stock reader unchanged.
+
+Receipt is one JSON `POST /api/batch` transaction, ordered line update →
+movement → asset cache patch → final manifest status. A received bulk portion
+moves source-to-destination; its shortfall moves source-to the fixed
+`Missing in transfer` location (`tnmissingxfer01`). A missing unique asset moves
+there as a whole record. The source therefore loses the full sent quantity,
+the destination gains only what was confirmed, and total inventory remains
+honest. Finding the shortfall later is an ordinary movement out of that holding
+location.
+
+The migration enables PocketBase's built-in batch API at 250 requests and a
+10-second timeout. A Gang Box (ADR 0021) is a top-level asset, so it rides as
+one existing asset line; its contained children are not repeated. Migration
+`1783468822` rejects a contained child as a manifest line, preventing the box
+and its contents from being moved twice.
+
 ## The two invariants
 
 Everything else in the codebase follows from these:
@@ -341,9 +382,9 @@ Two files, no dependencies, no build step:
   problems with 400 on creates; auth must be checked separately. Failures
   park visibly (red badge, human-tap discard); nothing is silently dropped.
 
-  Since ADR 0012/0014 the queue holds three entry kinds: movements
+  The queue holds movements
   (entries with no `kind`, the original shape — old pending entries keep
-  working), `kind: 'reading'` meter readings, and `kind: 'inspection'`
+  working), `kind: 'reading'` meter readings, `kind: 'inspection'`
   (whose client-set `inspected_at` survives the outage). Readings and
   inspections replay as **multipart** form data because the photo rides
   along — IndexedDB stores the `File` as a Blob natively, no base64
@@ -356,6 +397,15 @@ Two files, no dependencies, no build step:
   JSON otherwise, so pre-0013 pending entries replay byte-identically.
   In the multipart build, `null` fields are *skipped*, never appended:
   FormData stringifies `null` into the literal text `"null"`.
+
+  Transfer manifests add `kind: 'batch'` (ADR 0020). The semantic request
+  array and a local render snapshot are written to IndexedDB **before** the
+  first network attempt, then replayed through PocketBase's transactional
+  `/api/batch`. Every created movement still has a pre-generated id. If the
+  response disappears after commit, replay checks the parent manifest's
+  expected terminal status; because the server transaction is all-or-nothing,
+  that status proves every request already landed. The snapshot lets
+  `manifest.html` honestly render an unsynced draft/receipt from this phone.
 
   Two hard-won rules for anything new that touches this queue:
   everything stored must be **plain data** — Alpine wraps component
@@ -405,7 +455,7 @@ TrenchNote is open-core: this AGPL repo is complete and self-sufficient,
 and any paid tooling lives *outside* it, talking to PocketBase's REST API
 like any other client would
 ([ADR 0011](adr/0011-core-premium-extension-boundary.md)). The practical
-consequence for anyone working here: the ten collections' shapes and rules
+consequence for anyone working here: the fourteen collections' shapes and rules
 are a published contract ([API.md](API.md)), so breaking changes to them
 need an ADR and a contract version bump — not just a migration. Nothing in
 this repo may ever reference, detect, or depend on premium code.
