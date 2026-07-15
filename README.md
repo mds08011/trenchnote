@@ -64,7 +64,7 @@ You need `git`, `curl`, and `unzip` (all standard on Linux/macOS; on Windows,
 use Git Bash).
 
 ```sh
-git clone https://github.com/mds08011/trenchnote.git
+git clone https://github.com/levelbookdev/trenchnote.git
 cd trenchnote
 PB_VERSION=0.39.6 ./scripts/setup.sh  # tested PocketBase version
 ./pocketbase serve
