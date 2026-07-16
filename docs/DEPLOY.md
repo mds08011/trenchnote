@@ -53,7 +53,7 @@ no monthly bill.
 ```sh
 # On the box (any Linux; a Pi 3 or better is plenty):
 sudo useradd --system --create-home --home-dir /opt/trenchnote --shell /usr/sbin/nologin trenchnote
-sudo -u trenchnote git clone https://github.com/mds08011/trenchnote.git /opt/trenchnote/app
+sudo -u trenchnote git clone https://github.com/levelbookdev/trenchnote.git /opt/trenchnote/app
 sudo -u trenchnote sh -c "cd /opt/trenchnote/app && PB_VERSION=0.39.6 ./scripts/setup.sh"
 ```
 
