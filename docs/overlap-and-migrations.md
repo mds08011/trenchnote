@@ -4,6 +4,15 @@
 
 **Reviewed:** 2026-07-12
 
+> **MIGRATIONS FROZEN (2026-07-18).** Record migrations between products are
+> frozen until there are real users. No cross-product import, export, or
+> transfer of records is authorized, planned, or scheduled. The analysis below
+> is preserved as thinking — a record of how the boundaries were reasoned
+> about — not as a plan to execute. Note also that LineCheck is archived: its
+> segment-acceptance scope now belongs to MainLine as an unscheduled future
+> module, so any row below naming LineCheck as a future owner should be read
+> against that.
+
 No migration is approved or performed by this document. Sibling repositories
 were inspected locally where available. Their active branches may change faster
 than this repository, so each candidate requires a fresh source audit before
