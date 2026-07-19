@@ -160,7 +160,7 @@ documented in [product-boundary.md](docs/product-boundary.md) and
 [overlap-and-migrations.md](docs/overlap-and-migrations.md), not presented as
 shipped integrations.
 
-An optional proprietary `trenchnote-lookahead` sidecar may analyze the public
+An optional proprietary `bindery-trenchnote` sidecar may analyze the public
 REST contract as an ordinary client. It is never required for field execution,
 retention, backup, or current core exports, and its proprietary implementation
 and operations remain documented in its private repository.

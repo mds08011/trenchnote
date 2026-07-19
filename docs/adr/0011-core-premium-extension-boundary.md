@@ -12,6 +12,11 @@ movements exist (ADR 0005), and the reservation status field this ADR used
 as a hypothetical example has actually landed in core (ADR 0007, migration
 `1783468808`) — exactly through the process this ADR prescribes.
 
+> **Editor's note 2026-07-19:** the premium repo has since been renamed
+> `trenchnote-lookahead` → `bindery-trenchnote`, and the "Lookahead" brand
+> retired in favour of "Bindery". The boundary rules below are unchanged and
+> still in force.
+
 ## Context
 
 TrenchNote is adopting an **open-core** model: the AGPL core (everything

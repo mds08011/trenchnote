@@ -136,7 +136,7 @@ avoidable migration or compatibility cost.
 | --- | --- |
 | Why it matters | The public core needs a trustworthy boundary without disclosing proprietary implementation or making private operations normative for self-hosters. |
 | Options | Duplicate all docs; keep only private docs; public contract plus separate private implementation docs. |
-| Current evidence | ADR 0011 defines the API-only sidecar boundary. TrenchNote is public AGPL; `trenchnote-lookahead` is private. |
+| Current evidence | ADR 0011 defines the API-only sidecar boundary. TrenchNote is public AGPL; `bindery-trenchnote` is private. |
 | Recommendation | Public repo owns core behavior, public contracts, compatibility, and boundary statements. Private repo owns pricing, customer operations, proprietary algorithms, private deployment, and private roadmap; link only through public versioned contracts. |
 | Validate | Each new document for credentials, customer data, commercial logic, or public compatibility obligations. |
 | Decision owner | Maintainer/product owner. |

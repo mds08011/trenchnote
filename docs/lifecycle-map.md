@@ -74,7 +74,7 @@ not be documented here as settled.
 loop checks, startup, functional testing, training, and turnover. Its service
 cutover feature is the principal current boundary overlap.
 
-### Lookahead sidecars
+### Bindery sidecars
 
 **DECIDED for TrenchNote; proposed family pattern:** optional paid products may
 coordinate, aggregate, notify, host, compile, or integrate through public

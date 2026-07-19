@@ -17,7 +17,7 @@ this repo).
   already fully public API contract — any subscriber-built script can do
   the same today.
 - **Equipment timecard generator** (ADR 0012) — already underway as the
-  `trenchnote-lookahead` sidecar.
+  `bindery-trenchnote` sidecar.
 
 ## Explicitly not planned
 

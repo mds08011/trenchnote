@@ -95,7 +95,7 @@ or has been migrated.
 | TrenchNote | **CURRENT** working, deployed field ledger; repository ahead of deployment | Where is the physical material or asset, and what happened to it? | Owns logistics facts through receipt, storage, custody, movement, issue, and consumption/installation reference |
 | LineCheck | **CURRENT** pre-alpha domain/contracts scaffold; **PROPOSED** lifecycle owner | Has linear infrastructure or a service connection completed its required acceptance sequence? | Should consume explicit references or handoffs, never TrenchNote database rows; proposed owner of pressure testing, flushing, disinfection, sampling, service cutover, and restoration |
 | LoopCheck | **CURRENT** separate application with plant checkout and currently implemented service-cutover features | Is a plant asset or process system ready to operate and turn over? | Owns equipment/system checkout, startup, functional testing, training, and turnover; its existing service-cutover feature creates an overlap to resolve deliberately |
-| `*-lookahead` products | **CURRENT/UNKNOWN by repository** optional sidecars; TrenchNote's sidecar boundary is accepted in ADR 0011 | Paid coordination, aggregation, managed operations, and integrations | May consume public, versioned interfaces; must not become necessary for basic field execution or receive private database coupling |
+| `bindery-*` products | **CURRENT/UNKNOWN by repository** optional sidecars; TrenchNote's sidecar boundary is accepted in ADR 0011 | Paid coordination, aggregation, managed operations, and integrations | May consume public, versioned interfaces; must not become necessary for basic field execution or receive private database coupling |
 
 ## Current overlap
 
@@ -174,7 +174,7 @@ Public documentation may state:
 Public documentation must not contain private pricing logic, customer-specific
 configuration, operational credentials, proprietary report algorithms, private
 roadmaps, or implementation details copied from a private repository. Those
-belong only in the applicable private `*-lookahead` repository.
+belong only in the applicable private `bindery-*` repository.
 
 ## Decision test for new features
 
