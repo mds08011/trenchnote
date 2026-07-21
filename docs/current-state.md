@@ -2,7 +2,7 @@
 
 **Authority:** Descriptive
 
-**Repository snapshot:** `main`, being prepared for the `v1.0.0` tag
+**Repository snapshot:** `main` at the `v1.0.0` release
 
 **Reviewed:** 2026-07-20
 
@@ -283,8 +283,8 @@ PocketBase, and verify queued writes after restart.
   produce an honest movement history containing stale assumptions.
 - **CURRENT:** synchronous SMTP can delay a notified request when mail settings
   point to an unreachable server, although mail failure cannot undo the write.
-- **CURRENT:** the repository has no release tags yet; `v1.0.0` is being
-  prepared as the first tagged release.
+- **CURRENT:** `v1.0.0` (2026-07-20) is the first tagged release. The release
+  procedure is recorded in `RELEASING.md`.
 - **UNKNOWN:** there is no committed mapping from TrenchNote locations/job codes
   to project identities in sibling products.
 
