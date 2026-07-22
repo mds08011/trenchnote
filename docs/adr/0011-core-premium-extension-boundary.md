@@ -16,6 +16,17 @@ as a hypothetical example has actually landed in core (ADR 0007, migration
 > `trenchnote-lookahead` → `bindery-trenchnote`, and the "Lookahead" brand
 > retired in favour of "Bindery". The boundary rules below are unchanged and
 > still in force.
+>
+> **Update 2026-07-21:** the CLA-vs-DCO question this ADR left open (see
+> "Copyright and contributions") is resolved: **DCO** — a `Signed-off-by`
+> line (`git commit -s`). A CLA was **declined**; the maintainer is an
+> individual, not a company positioned to administer one, and a DCO preserves
+> the sole-copyright assurance without the overhead. Also confirmed on this
+> date: `trenchnote` is the **only public** Level Books repo; the premium
+> sidecar (`bindery-trenchnote`, including its "loopcheck" work) stays private
+> by deliberate choice — the reticence is simply that publishing is
+> irreversible and there is no rush, not a boundary change. See
+> [CONTRIBUTING.md](../../CONTRIBUTING.md).
 
 ## Context
 

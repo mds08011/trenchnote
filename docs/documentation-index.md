@@ -93,6 +93,7 @@ authority. At the reviewed snapshot every committed ADR below is accepted.
 | [0018](adr/0018-item-code.md) | Optional catalog/reference code on items |
 | [0019](adr/0019-damage-condition-reports.md) | Append-only photographed condition evidence and derived damage standing |
 | [0020](adr/0020-transfer-manifests.md) | Manifest-derived transit and atomic two-sided transfer confirmation |
+| [0021](adr/0021-gang-boxes-and-kitting.md) | One-level gang-box containment, derived member location, and audited contents |
 
 ADR 0017 was considered and deferred inside ADR 0018; no standalone accepted
 ADR 0017 exists.

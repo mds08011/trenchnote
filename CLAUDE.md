@@ -138,9 +138,10 @@ reproduce the entire database from the repo.
   offline queues and back-entry; `created` still shows when it entered),
   `note`, `photo` (nagged for on fail/removed, never required). createRule
   enforces `requirement.asset = asset` server-side. The RED/YELLOW/GREEN
-  badge is **derived at render time** by `pb_public/tn-inspect.js` (shared
-  by asset.html + index.html — the second exception to self-contained
-  pages, because DO-NOT-USE logic must not drift): RED = latest fail/
+  badge is **derived at render time** by `pb_public/tn-inspect.js` (one of the
+  shared derived-logic helpers — with `tn-containers.js`, ADR 0021 — that are
+  the deliberate exceptions to self-contained pages, because DO-NOT-USE and
+  location-derivation logic must not drift between surfaces): RED = latest fail/
   removed, past due, or no pass on record; YELLOW = due within 14 days (a
   code constant, not a setting); GREEN = all current; no badge = no
   requirements. Nothing about compliance is ever stored.
@@ -166,14 +167,18 @@ reproduce the entire database from the repo.
   transaction to write line confirmations, ordinary movements, asset-cache
   patches, and final status. Shortfalls move to the seeded `Missing in
   transfer` holding location rather than being mislabeled as consumption.
-- **`container_events`** — append-only Gang Box membership facts: add/remove
-  one loose asset to/from one top-level container. `assets.is_container` marks
-  a box and `assets.container_id` is a derived membership cache; contained
-  assets derive location from the box and cannot move independently.
-- **`kit_audits`** — append-only, client-dated Gang Box checklist snapshots.
-  Missing results atomically remove the member and move it to `Missing in
-  transfer`. Boxes travel on transfer manifests as one ordinary asset line;
-  their contents are never repeated as lines.
+- **`container_events`** — append-only Gang Box membership facts (ADR 0021):
+  add/remove one loose asset to/from one top-level container. `assets.is_container`
+  marks a box and `assets.container_id` is a derived membership cache; contained
+  assets have their `current_location` cleared and derive location from the box
+  (via `pb_public/tn-containers.js`) and cannot move independently. Enforced by
+  `pb_hooks/containers.pb.js`.
+- **`kit_audits`** — append-only, client-dated Gang Box checklist snapshots
+  (ADR 0021). `results` is a bounded JSON list `[{asset_id, present|missing}]`;
+  the server refuses an incomplete checklist and, atomically, removes each
+  `missing` member and parks it at `Missing in transfer` (ADR 0020). Boxes
+  travel on transfer manifests as one ordinary asset line; their contents are
+  never repeated as lines.
 
 ### Model principles
 
@@ -192,39 +197,55 @@ reproduce the entire database from the repo.
 
 ```
 trenchnote/
-├── CLAUDE.md              # this file — project context
+├── CLAUDE.md              # agent context (Claude Code) — read first every session
+├── AGENTS.md              # agent context (Codex) — twin of CLAUDE.md, kept in lockstep
 ├── README.md              # what it is + quickstart for self-hosters
 ├── USER_GUIDE.md          # field guide for crews — plain language, no jargon
 ├── ROADMAP.md             # parked ideas + the free/hosted-tier line
+├── RELEASING.md           # release procedure (v1.0.0 onward)
+├── CONTRIBUTING.md        # CLA/DCO note (ADR 0011) + how to contribute
 ├── LICENSE                # AGPLv3
 ├── docs/
 │   ├── DEVELOPER_GUIDE.md # how it works: data model, invariants, patterns
-│   └── adr/               # architecture decision records (the WHY)
+│   ├── current-state.md   # what is SHIPPED today (status words) — the ground truth
+│   ├── BACKLOG.md         # incident-driven product backlog (motivated, unbuilt)
+│   ├── adr/               # architecture decision records (the WHY) — the decision log
+│   ├── tasks/             # per-task implementation prompts (see Session workflows)
+│   └── …                  # domain-model, invariants, architecture-status,
+│                          #   lifecycle-map, product-boundary, API, etc.
 ├── .gitignore             # ignore the pocketbase binary and pb_data/
 ├── pb_migrations/         # versioned schema (COMMITTED)
-├── pb_hooks/              # server hooks: off-site move email (ADR 0012)
+├── pb_hooks/              # server hooks (JS):
+│   ├── main.pb.js         #   off-site move email (ADR 0012)
+│   └── containers.pb.js   #   gang-box / kitting invariants (ADR 0021)
 ├── pb_public/             # the static frontend
 │   ├── index.html         # dashboard: assets by location, materials, recently moved
 │   ├── asset.html         # scan landing page: view + move an asset
 │   ├── material.html      # bulk item: stock per location (derived) + move quantities
 │   ├── receiving.html     # print-friendly receiving report (ADR 0013)
-│   ├── manifests.html     # build and dispatch a transfer manifest
+│   ├── manifests.html     # build and dispatch a transfer manifest (ADR 0020)
 │   ├── manifest.html      # print/receive one transfer manifest (ADR 0020)
 │   ├── labels.html        # print QR labels for all assets
 │   ├── scan.html          # in-app QR scanner; walk mode audits a location
 │   ├── login.html         # sign in; token to localStorage
 │   ├── tn-auth.js         # shared auth helper (TN.fetch / TN.requireLogin)
-│   ├── tn-sync.js         # offline write queue + sync badge + stale banner
+│   ├── tn-sync.js         # offline write queue + sync badge + stale banner (ADR 0008)
 │   ├── tn-inspect.js      # derived inspection badge logic (ADR 0014)
+│   ├── tn-containers.js   # derived gang-box location logic (ADR 0021)
 │   ├── sw.js              # service worker (bump VERSION on any pb_public change!)
 │   ├── manifest.json      # PWA manifest (+ icon-192/512.png)
-│   └── vendor/            # vendored alpine.min.js, qrcode.min.js
-└── scripts/
-    ├── setup.sh           # download the right PocketBase binary for the OS
-    ├── seed_demo.sh       # fill a local instance with fake demo data
-    └── smoke_test.sh      # regression gate: fresh DB + seed + invariant
-                           # assertions over the REST API. Run before any
-                           # migration lands, any tag, any deploy.
+│   └── vendor/            # vendored alpine.min.js, qrcode.min.js, jsQR.min.js
+├── scripts/
+│   ├── setup.sh           # download the right PocketBase binary for the OS
+│   ├── seed_demo.sh       # fill a local instance with fake demo data
+│   ├── seed_local_june2026.sh # a larger local dev seed
+│   └── smoke_test.sh      # regression gate: fresh DB + seed + invariant
+│                          # assertions over the REST API. Run before any
+│                          # migration lands, any tag, any deploy.
+├── tests/
+│   └── gang_boxes.ps1     # Windows integration test for gang boxes / kitting
+└── deploy/                # VPS/Pi deploy config: Caddyfile, systemd unit,
+                           # litestream.yml, preflight.sh, verify-live.sh (ADR 0006)
 ```
 
 Committed: source, migrations, vendored libs, docs.
@@ -326,10 +347,78 @@ the feature and the documentation as complete together.
    foreman or laborer uses the feature, in plain English, no jargon.
 4. **README** — update `README.md` if setup instructions or core features
    changed.
+5. **Status + agent docs** — if the change alters what is *shipped*, reconcile
+   `docs/current-state.md` (it is the ground-truth status doc). Any edit to this
+   file (`CLAUDE.md`) must be mirrored into `AGENTS.md` (see "Canonical planning
+   docs" below). And if you touched anything in `pb_public/`, bump `VERSION` in
+   `pb_public/sw.js`.
 
 Docs must stay truthful to the code as shipped: no documenting aspirations as
 features, and if the code and the docs disagree, fixing that mismatch is part
 of the task.
+
+## Canonical planning docs — do not create parallels
+
+This repo already has its planning and decision infrastructure. **Do NOT create
+`DECISIONS.md`, `docs/ROADMAP.md`, or `docs/ARCHITECTURE.md`** — the equivalents
+exist and are the single source of truth. If you think a parallel file is
+needed, you are wrong; extend the existing one.
+
+- **Decision log** → `docs/adr/` (numbered ADRs — the WHY). A significant new
+  decision gets a **new numbered ADR** here. Rejected ideas that should never be
+  re-proposed are recorded in `ROADMAP.md` ("Explicitly not planned") and the
+  Non-goals above.
+- **Roadmap / parking lot** → root `ROADMAP.md` (shaped-but-undated ideas + the
+  free/paid line) and `docs/BACKLOG.md` (incident-driven product backlog).
+  Neither is a promise list; TrenchNote is post-v1.0 and in parking-lot mode.
+- **Architecture** → `docs/architecture-status.md`, `docs/domain-model.md`,
+  `docs/invariants.md`, `docs/lifecycle-map.md`, and `docs/current-state.md`
+  (what is shipped today, with CURRENT/DECIDED/PROPOSED status words).
+- **Task queue** → `docs/tasks/` (see below). **Empty is the normal resting
+  state** — the parking lot is not a task queue.
+- **`CLAUDE.md` and `AGENTS.md`** are twin agent-context files (for Claude Code
+  and Codex respectively). Keep them in lockstep: identical project facts,
+  differing only in the agent name and the filename in the H1. Any edit to one
+  is mirrored into the other.
+
+## Session workflows
+
+Two modes. Work out which one you are in before writing any code.
+
+### Execution workflow — when `docs/tasks/` has an actionable task
+
+1. Read this file, `ROADMAP.md`, and the ADRs relevant to the task.
+2. In `docs/tasks/`, pick the **lowest-numbered** task whose `Status:` is not
+   `DONE` and not `BLOCKED` (respect the BLOCKED reason). That is your task.
+3. Do exactly what its Specification and Acceptance criteria say — **no more.**
+   Do not "improve" settled decisions; if you disagree, stop and raise it.
+4. Honour the Definition of done (docs-as-code) *and* the task's own checklist.
+   Bump `sw.js` VERSION if you touched `pb_public/`. Run
+   `scripts/smoke_test.sh` (green) before a migration/backend change is "done".
+5. Update the task's `Status:` line to `DONE`. If it closes a milestone, tick
+   that milestone in `ROADMAP.md`.
+6. Commit with a message describing what changed (author the maintainer only;
+   **no `Co-Authored-By` trailer**). Then stop and show the maintainer.
+
+### Roadmap-maintenance workflow — when `docs/tasks/` is empty (or a milestone just closed)
+
+An empty `docs/tasks/` is the **normal** state of this post-v1.0 repo. Do **not**
+invent work. This is a planning session, not a coding session:
+
+1. Re-read `ROADMAP.md`, `docs/BACKLOG.md`, and `docs/adr/`; check
+   `docs/current-state.md` for what is actually shipped vs deployed.
+2. If — and only if — the maintainer has named committed near-term work, break
+   it into numbered task files using `docs/tasks/_TEMPLATE.md`. One task = one
+   focused session.
+3. Run a short ideation pass (one new-feature, one cut, one integration idea),
+   each checked against the Non-goals and the ADRs so a **rejected idea is not
+   re-proposed**.
+4. Present everything to the maintainer for approval **before** writing task
+   files. Only then do execution sessions resume.
+
+If mid-task you find the roadmap or an ADR is wrong or contradicts the code,
+**stop**, describe the conflict, and propose a doc edit. Do not improvise around
+it.
 
 ## Working style
 

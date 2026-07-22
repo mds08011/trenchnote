@@ -2,9 +2,9 @@
 
 **Authority:** Descriptive
 
-**Repository snapshot:** `main` at the `v1.0.0` release
+**Repository snapshot:** `main`, a few commits past the `v1.0.0` release
 
-**Reviewed:** 2026-07-20
+**Reviewed:** 2026-07-21
 
 This document records behavior confirmed in this repository. It does not
 describe the broader product family except where an implemented integration
@@ -229,7 +229,7 @@ instructions live in `docs/DEPLOY.md`, `deploy/README.md`, and
 
 - `https://trenchnote.com` serves the public project site.
 - `https://app.trenchnote.com/api/health` reports a healthy PocketBase API.
-- The deployed service worker is `v6`, while this repository is `v18`.
+- The deployed service worker is `v6`, while this repository is `v19`.
 - The deployed database is materially behind `main`: the `inspections`,
   `manifests`, `condition_reports`, `container_events`, and `kit_audits`
   collections all return `404` live, so the receiving evidence, inspections,
@@ -252,8 +252,9 @@ public REST API: authentication required on every collection for both reads and
 writes, all seven ledgers append-only, the movement shape rules, the
 write-movement-then-cache sequence, derived bulk stock (in minus out, including
 a representable negative balance), the reservation lifecycle, the inspection
-requirement/asset pairing, and one-level Gang Box containment. It exits non-zero
-on any regression and is run before a migration lands, a tag, or a deploy.
+requirement/asset pairing, one-level Gang Box containment, and the kit-audit
+missing-item detach/park side effect (ADR 0021). It exits non-zero on any
+regression and is run before a migration lands, a tag, or a deploy.
 `scripts/seed_demo.sh` itself remains a living exercise of the API contract.
 `deploy/preflight.sh` validates a throwaway PocketBase startup and collection
 availability, while `deploy/verify-live.sh` performs read-only checks against a

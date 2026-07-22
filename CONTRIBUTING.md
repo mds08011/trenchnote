@@ -3,23 +3,24 @@
 Thanks for your interest! Bug reports, field stories, and doc fixes are
 always welcome as issues.
 
-## Before sending code: the copyright requirement
+## Before sending code: the sign-off requirement
 
 TrenchNote is open-core ([ADR 0011](docs/adr/0011-core-premium-extension-boundary.md)):
-the core is AGPL forever, and the maintainer holds sole copyright, which is
-what keeps future licensing decisions possible. To preserve that,
-**code contributions require either a CLA or a DCO before they can be
-merged**:
+the core is AGPL forever, and the maintainer — an individual, not a company —
+holds sole copyright, which is what keeps future licensing decisions possible.
 
-- **CLA** ("contributor license agreement") — a short agreement granting
-  the maintainer broad rights to your patch.
-- **DCO** ("developer certificate of origin") — a `Signed-off-by:` line in
-  your commits asserting you have the right to submit the code.
+To preserve that, **code contributions require a DCO sign-off**. A DCO
+(["developer certificate of origin"](https://developercertificate.org/)) is a
+`Signed-off-by: Your Name <you@example.com>` line on each commit — add it with
+`git commit -s` — asserting you wrote the patch, or otherwise have the right to
+submit it under the project's license. That is the whole of the paperwork.
 
-Which of the two TrenchNote will use is **not decided yet**. Until it is,
-please open an issue before writing a substantial patch — small fixes can
-usually wait for the decision; large ones deserve a conversation first so
-your work doesn't stall on paperwork.
+A CLA ("contributor license agreement") was considered and **declined**
+(decided 2026-07-21): the maintainer is not a company positioned to administer
+one, and a DCO gives the assurance the sole-copyright model needs without it.
+
+Please still open an issue before a substantial patch so your work doesn't
+stall — but the sign-off, not a signed agreement, is all that's required.
 
 ## Ground rules for patches
 
@@ -29,9 +30,10 @@ your work doesn't stall on paperwork.
   regardless of quality.
 - Schema changes ship as migrations in `pb_migrations/`, never as
   hand-edits, and need a short ADR in `docs/adr/`.
-- The eight contract collections are a published API surface
-  ([docs/API.md](docs/API.md)) — breaking changes to them need an ADR *and*
-  a contract version bump, not just a migration.
+- The contract collections are a published API surface
+  ([docs/API.md](docs/API.md), and the v1 contract surface in ADR 0011) —
+  breaking changes to them need an ADR *and* a contract version bump, not
+  just a migration.
 - Anything touching the tag/QR format is a breaking change to physical
   printed labels ([ADR 0010](docs/adr/0010-qr-url-and-tag-code-format.md))
   and needs explicit maintainer sign-off.

@@ -144,6 +144,13 @@ Part C non-goal added to CLAUDE.md, and by ADR 0015 keeping rates out of core.)
 **Depends on.** Nothing hard; a single field on `assets`. Feeds item 7's report
 (the owning-project column) and sharpens item 2's staleness view.
 
+**Ecosystem note (2026-07-21).** When this field is built, leave room for it to
+carry a *stable project reference* compatible with the sibling `project_ref`
+contract sketched in [ecosystem-contracts.md](ecosystem-contracts.md) — not only
+a human job label. TrenchNote has no project entity today (an open issue in that
+doc); a plain owning-project label is fine for the field itself, but shaping it
+with a stable id in mind avoids a painful cross-product retrofit later.
+
 ## 5. Asset status beside location
 
 **Motivation.** Incident 2: an asset's *state* — "on hold; not in use",
@@ -266,3 +273,70 @@ scan that ends the search (item 3).
 
 **Depends on.** Items 2 and 3 (and therefore 6). Deliberately last; build only
 if the sighting + missing machinery makes it nearly free.
+
+---
+
+> Items 10–12 came from a roadmap-maintenance ideation pass (2026-07-21), not
+> from a July 2026 field incident. They are shaped and boundary-walled the same
+> way, but their motivation is the product goals in [CLAUDE.md](../CLAUDE.md),
+> not a specific war story.
+
+## 10. Full ledger data export
+
+**Motivation.** The AGPL self-hoster ethos and open-core trust: a user should be
+able to get **all** their data out, not just the inspection CSV that ships today.
+It is also the honest boundary — any authenticated API client can already pull
+every record, so a built-in export is pure convenience and stays firmly free
+("the ledger is free; insight about the ledger is paid," ADR 0011).
+
+**Proposed shape.** A client-generated export of the core ledgers — movements,
+assets, readings, locations, items — as CSV (a zip of per-collection CSVs is
+fine), following the pattern of the existing inspection CSV export in
+`index.html`. Read-only. **Must paginate** (the REST API caps list calls at 500;
+current-state.md's "Known limitations" flags views that don't page).
+
+**Explicitly not.** Not a backup/restore tool — that is operator territory
+(Litestream + a file copy, ADR 0006), not a browser button. Not analysis or
+reporting — computed insight is the premium sidecar (ADR 0011). Raw rows out, no
+derived numbers.
+
+**Depends on.** Nothing hard; the inspection CSV export is the pattern to copy.
+
+## 11. Stale bulk-material surfacing
+
+**Motivation.** Goal 2 (the staging-yard black hole) for the **bulk** world.
+Item 2 (sightings) attacks stale *asset* locations; nothing surfaces bulk stock
+that has sat untouched in a yard for months and may have quietly walked off
+before startup — the exact black hole, one aisle over.
+
+**Proposed shape.** A derived view — item + location whose most recent movement
+is older than N months — surfaced on the dashboard or `material.html`. Pure
+derivation over the movements ledger (the same in-minus-out engine that already
+derives stock); nothing stored.
+
+**Explicitly not.** No automated audit cycle or nag (same restraint as
+inspections, ADR 0014, and item 2). No reorder or procurement logic (the PO
+wall, ADR 0013).
+
+**Depends on.** Nothing hard; it is a query. Complements item 2 so both the
+unique and the bulk halves of the black hole are visible.
+
+## 12. Rental off-rent-due flag
+
+**Motivation.** Goal 3 (rented equipment). ADR 0015 put `on_rent_date` /
+`off_rent_date` in core and `asset.html` already *shows* the off-rent date — but
+a rented lift sitting idle past its off-rent date is burned money, and nothing
+surfaces it as *attention*.
+
+**Proposed shape.** Render a rented asset amber/red when its `off_rent_date` is
+near or past — the same passive, human-cleared pattern `asset.html` already uses
+to flag an overdue reservation red. The dashboard could list rentals due back
+soon. ADR 0015 explicitly names "flag overdue rentals in core itself" as future
+core scope.
+
+**Explicitly not.** No burn-cost or rate math — that needs rates, which stay in
+the premium sidecar (ADR 0015 / ADR 0011). This flags a **date**, never a
+dollar. No vendor integration (ownership stays manual).
+
+**Depends on.** Nothing hard; the date fields exist (migration `1783468816`).
+A date comparison plus a render change.
